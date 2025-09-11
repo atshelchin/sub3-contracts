@@ -6,5 +6,5 @@ remappings = [
     "solady/=lib/solady/src/"
 ]
 [lint]
-exclude_lints = ["asm-keccak256"]
+exclude_lints = ["asm-keccak256","mixed-case-function"]
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

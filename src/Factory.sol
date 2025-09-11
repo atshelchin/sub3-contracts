@@ -2,8 +2,10 @@
 pragma solidity ^0.8.13;
 
 import {Ownable} from "solady/auth/Ownable.sol";
+import {ReentrancyGuard} from "solady/utils/ReentrancyGuard.sol";
 import {LibClone} from "solady/utils/LibClone.sol";
 import {DataTypes} from "./DataTypes.sol";
+import {IFactory} from "./interfaces/IFactory.sol";
 
 interface IProject {
     function initialize(
@@ -13,8 +15,12 @@ interface IProject {
     ) external;
 }
 
-contract Factory is Ownable {
+contract Factory is IFactory, Ownable, ReentrancyGuard {
     using LibClone for address;
+    
+    // Constants
+    uint256 public constant MAX_BASIS_POINTS = 10000;
+    uint256 public constant MAX_PAGINATION_LIMIT = 100;
     
     // Core configuration
     address public projectImplementation;
@@ -27,28 +33,7 @@ contract Factory is Ownable {
     mapping(address => address) public projectToOwner; // project => owner mapping
     mapping(bytes32 => address) public saltToProject; // salt => project address for lookup
 
-    // Events
-    event ProjectDeployed(
-        address indexed project,
-        address indexed owner,
-        string name,
-        string symbol,
-        uint256 timestamp
-    );
-    event CreationFeeUpdated(uint256 oldFee, uint256 newFee);
-    event ImplementationUpdated(
-        address oldImplementation,
-        address newImplementation
-    );
-    event PlatformFeeUpdated(uint256 oldBasisPoints, uint256 newBasisPoints);
-
-    // Errors
-    error InvalidFee(uint256 sent, uint256 required);
-    error InvalidInput(string reason);
-    error ZeroAddress();
-    error InvalidBasisPoints(uint256 basisPoints);
-    error TransferFailed();
-    error ProjectAlreadyExists(address existingProject);
+    // Events and Errors are defined in IFactory interface
 
     /**
      * @notice Receive function to accept creation fees and donations
@@ -87,8 +72,8 @@ contract Factory is Ownable {
         }
 
         // Cap limit to prevent excessive gas usage
-        if (limit > 100) {
-            limit = 100;
+        if (limit > MAX_PAGINATION_LIMIT) {
+            limit = MAX_PAGINATION_LIMIT;
         }
 
         // Calculate actual items to return
@@ -126,8 +111,8 @@ contract Factory is Ownable {
         }
 
         // Cap limit to prevent excessive gas usage
-        if (limit > 100) {
-            limit = 100;
+        if (limit > MAX_PAGINATION_LIMIT) {
+            limit = MAX_PAGINATION_LIMIT;
         }
 
         // Calculate actual items to return
@@ -174,7 +159,7 @@ contract Factory is Ownable {
     function setPlatformFeeBasisPoints(
         uint256 newBasisPoints
     ) external onlyOwner {
-        if (newBasisPoints > 10000) { // 10000 basis points = 100%
+        if (newBasisPoints > MAX_BASIS_POINTS) {
             revert InvalidBasisPoints(newBasisPoints);
         }
         uint256 oldBasisPoints = platformFeeBasisPoints;
@@ -191,17 +176,25 @@ contract Factory is Ownable {
     function deployNewProject(
         DataTypes.BrandConfig memory brandConfig,
         address projectOwner
-    ) external payable returns (address project) {
+    ) external payable nonReentrant returns (address project) {
         if (msg.value != projectCreationFee) {
             revert InvalidFee(msg.value, projectCreationFee);
         }
 
         if (projectOwner == address(0)) revert ZeroAddress();
+        // Validate brand config
         if (bytes(brandConfig.name).length == 0) {
             revert InvalidInput("Project name cannot be empty");
         }
         if (bytes(brandConfig.symbol).length == 0) {
             revert InvalidInput("Project symbol cannot be empty");
+        }
+        // Add length limits to prevent DOS
+        if (bytes(brandConfig.name).length > 100) {
+            revert InvalidInput("Project name too long");
+        }
+        if (bytes(brandConfig.symbol).length > 20) {
+            revert InvalidInput("Project symbol too long");
         }
 
         // Generate salt using standard Solidity (simpler and cleaner)
@@ -223,13 +216,7 @@ contract Factory is Ownable {
         projectToOwner[project] = projectOwner;
         saltToProject[salt] = project;
 
-        // Transfer fees to owner after storing data
-        if (address(this).balance > 0) {
-            (bool success, ) = payable(owner()).call{
-                value: address(this).balance
-            }("");
-            if (!success) revert TransferFailed();
-        }
+        // Fees remain in the contract and can be withdrawn using withdrawFees()
 
         emit ProjectDeployed(
             project,
@@ -244,7 +231,7 @@ contract Factory is Ownable {
      * @notice Withdraw accumulated fees from the factory
      * @param recipient Address to receive the withdrawn fees
      */
-    function withdrawFees(address recipient) external onlyOwner {
+    function withdrawFees(address recipient) external onlyOwner nonReentrant {
         if (recipient == address(0)) revert ZeroAddress();
         uint256 balance = address(this).balance;
         if (balance == 0) revert InvalidInput("No fees to withdraw");
@@ -259,7 +246,7 @@ contract Factory is Ownable {
      * @return fee The calculated platform fee
      */
     function calculatePlatformFee(uint256 amount) public view returns (uint256 fee) {
-        fee = (amount * platformFeeBasisPoints) / 10000;
+        fee = (amount * platformFeeBasisPoints) / MAX_BASIS_POINTS;
     }
 
     /**
