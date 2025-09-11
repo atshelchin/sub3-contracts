@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {Test, console2} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {Factory} from "../src/Factory.sol";
 import {IFactory} from "../src/interfaces/IFactory.sol";
 import {Project} from "../src/Project.sol";
 import {DataTypes} from "../src/DataTypes.sol";
-import {ReentrancyGuard} from "solady/utils/ReentrancyGuard.sol";
 
 contract FactoryTest is Test {
     Factory public factory;
