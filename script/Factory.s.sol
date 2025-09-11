@@ -12,7 +12,6 @@ contract FactoryScript is Script {
     function run() public {
         vm.startBroadcast();
 
-
         // factory = new Factory();
 
         vm.stopBroadcast();

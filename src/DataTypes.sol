@@ -25,16 +25,19 @@ library DataTypes {
     enum SubscriptionTier {
         PRO, // 0: Pro plan
         MAX // 1: Max plan
+
     }
 
     enum SubscriptionPeriod {
         MONTHLY, // 0: Monthly payment
         YEARLY // 1: Yearly payment
+
     }
 
     enum SubscriptionStatus {
         ACTIVE, // 0: Active
         EXPIRED // 1: Expired
+
     }
 
     enum OperationType {
@@ -42,13 +45,16 @@ library DataTypes {
         UPGRADE, // 1: Upgrade
         DOWNGRADE, // 2: Downgrade
         RENEW // 3: Renew
+
     }
+
     struct SubscriptionPlan {
         SubscriptionTier tier; // Subscription tier
         uint256 monthlyPrice; // Monthly price (wei)
         uint256 yearlyPrice; // Yearly price (wei)
         string[] features; // Feature list
     }
+
     struct UserSubscription {
         address user; // User address
         address referrer; // Referrer address

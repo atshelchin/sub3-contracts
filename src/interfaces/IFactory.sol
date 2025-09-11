@@ -10,17 +10,10 @@ import {DataTypes} from "../DataTypes.sol";
 interface IFactory {
     // Events
     event ProjectDeployed(
-        address indexed project,
-        address indexed owner,
-        string name,
-        string symbol,
-        uint256 timestamp
+        address indexed project, address indexed owner, string name, string symbol, uint256 timestamp
     );
     event CreationFeeUpdated(uint256 oldFee, uint256 newFee);
-    event ImplementationUpdated(
-        address oldImplementation,
-        address newImplementation
-    );
+    event ImplementationUpdated(address oldImplementation, address newImplementation);
     event PlatformFeeUpdated(uint256 oldBasisPoints, uint256 newBasisPoints);
 
     // Errors
@@ -40,9 +33,26 @@ interface IFactory {
     function ownerProjects(address owner, uint256 index) external view returns (address);
     function projectToOwner(address project) external view returns (address);
     function saltToProject(bytes32 salt) external view returns (address);
-    
+
     function MAX_BASIS_POINTS() external view returns (uint256);
     function MAX_PAGINATION_LIMIT() external view returns (uint256);
+
+    // Revenue tracking
+    function totalCreationFeesCollected() external view returns (uint256);
+    function totalPlatformFeesReceived() external view returns (uint256);
+    function totalDirectDeposits() external view returns (uint256);
+
+    /**
+     * @notice Get comprehensive factory revenue statistics
+     * @return creationFees Total fees from project creation
+     * @return platformFees Total platform fees received from projects
+     * @return directDeposits Total direct ETH deposits
+     * @return totalBalance Current contract balance
+     */
+    function getRevenueStats()
+        external
+        view
+        returns (uint256 creationFees, uint256 platformFees, uint256 directDeposits, uint256 totalBalance);
 
     /**
      * @notice Get all deployed projects with pagination
@@ -51,10 +61,10 @@ interface IFactory {
      * @return projectList Array of project addresses
      * @return totalCount Total number of projects in the system
      */
-    function getProjectsPaginated(
-        uint256 offset,
-        uint256 limit
-    ) external view returns (address[] memory projectList, uint256 totalCount);
+    function getProjectsPaginated(uint256 offset, uint256 limit)
+        external
+        view
+        returns (address[] memory projectList, uint256 totalCount);
 
     /**
      * @notice Get projects owned by a specific address with pagination
@@ -64,11 +74,10 @@ interface IFactory {
      * @return projectList Array of project addresses owned by the specified owner
      * @return totalCount Total number of projects owned by this address
      */
-    function getOwnerProjectsPaginated(
-        address owner,
-        uint256 offset,
-        uint256 limit
-    ) external view returns (address[] memory projectList, uint256 totalCount);
+    function getOwnerProjectsPaginated(address owner, uint256 offset, uint256 limit)
+        external
+        view
+        returns (address[] memory projectList, uint256 totalCount);
 
     /**
      * @notice Calculate platform fee for a given amount
@@ -97,13 +106,13 @@ interface IFactory {
      * @return exists True if the combination already exists
      * @return existingProject Address of existing project if it exists
      */
-    function isProjectNameTaken(
-        string memory name,
-        string memory symbol
-    ) external view returns (bool exists, address existingProject);
+    function isProjectNameTaken(string memory name, string memory symbol)
+        external
+        view
+        returns (bool exists, address existingProject);
 
     // State-Changing Functions
-    
+
     /**
      * @notice Set the fee required to create a new project
      * @param newFee The new creation fee amount in wei
@@ -128,10 +137,10 @@ interface IFactory {
      * @param projectOwner Address that will own the deployed project
      * @return project Address of the newly deployed project contract
      */
-    function deployNewProject(
-        DataTypes.BrandConfig memory brandConfig,
-        address projectOwner
-    ) external payable returns (address project);
+    function deployNewProject(DataTypes.BrandConfig memory brandConfig, address projectOwner)
+        external
+        payable
+        returns (address project);
 
     /**
      * @notice Withdraw accumulated fees from the factory

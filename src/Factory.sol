@@ -8,20 +8,16 @@ import {DataTypes} from "./DataTypes.sol";
 import {IFactory} from "./interfaces/IFactory.sol";
 
 interface IProject {
-    function initialize(
-        DataTypes.BrandConfig memory _brandConfig,
-        address _factory,
-        address _owner
-    ) external;
+    function initialize(DataTypes.BrandConfig memory _brandConfig, address _factory, address _owner) external;
 }
 
 contract Factory is IFactory, Ownable, ReentrancyGuard {
     using LibClone for address;
-    
+
     // Constants
     uint256 public constant MAX_BASIS_POINTS = 10000;
     uint256 public constant MAX_PAGINATION_LIMIT = 100;
-    
+
     // Core configuration
     address public projectImplementation;
     uint256 public projectCreationFee = 0.01 ether;
@@ -33,12 +29,26 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
     mapping(address => address) public projectToOwner; // project => owner mapping
     mapping(bytes32 => address) public saltToProject; // salt => project address for lookup
 
+    // Revenue tracking
+    uint256 public totalCreationFeesCollected; // Total fees from deployNewProject
+    uint256 public totalPlatformFeesReceived; // Total platform fees from projects
+    uint256 public totalDirectDeposits; // Total ETH sent directly via receive()
+
     // Events and Errors are defined in IFactory interface
 
     /**
-     * @notice Receive function to accept creation fees and donations
+     * @notice Receive function to accept ETH (platform fees from projects and direct deposits)
      */
-    receive() external payable {}
+    receive() external payable {
+        // Check if sender is a deployed project (platform fee) or external (direct deposit)
+        if (projectToOwner[msg.sender] != address(0)) {
+            // This is a platform fee from a project
+            totalPlatformFeesReceived += msg.value;
+        } else {
+            // This is a direct deposit
+            totalDirectDeposits += msg.value;
+        }
+    }
 
     /**
      * @notice Constructor to initialize the factory contract
@@ -60,10 +70,11 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
      * @return projectList Array of project addresses
      * @return totalCount Total number of projects in the system
      */
-    function getProjectsPaginated(
-        uint256 offset,
-        uint256 limit
-    ) external view returns (address[] memory projectList, uint256 totalCount) {
+    function getProjectsPaginated(uint256 offset, uint256 limit)
+        external
+        view
+        returns (address[] memory projectList, uint256 totalCount)
+    {
         totalCount = projects.length;
 
         // Early return if offset is out of bounds
@@ -97,11 +108,11 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
      * @return projectList Array of project addresses owned by the specified owner
      * @return totalCount Total number of projects owned by this address
      */
-    function getOwnerProjectsPaginated(
-        address owner,
-        uint256 offset,
-        uint256 limit
-    ) external view returns (address[] memory projectList, uint256 totalCount) {
+    function getOwnerProjectsPaginated(address owner, uint256 offset, uint256 limit)
+        external
+        view
+        returns (address[] memory projectList, uint256 totalCount)
+    {
         address[] storage userProjects = ownerProjects[owner];
         totalCount = userProjects.length;
 
@@ -142,9 +153,7 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
      * @notice Update the project implementation contract address
      * @param newImplementation Address of the new implementation contract
      */
-    function setProjectImplementation(
-        address newImplementation
-    ) external onlyOwner {
+    function setProjectImplementation(address newImplementation) external onlyOwner {
         if (newImplementation == address(0)) revert ZeroAddress();
         address oldImplementation = projectImplementation;
         projectImplementation = newImplementation;
@@ -156,9 +165,7 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
      * @param newBasisPoints The new platform fee in basis points (e.g., 500 for 5%)
      * @dev 1 basis point = 0.01%, so 10000 basis points = 100%
      */
-    function setPlatformFeeBasisPoints(
-        uint256 newBasisPoints
-    ) external onlyOwner {
+    function setPlatformFeeBasisPoints(uint256 newBasisPoints) external onlyOwner {
         if (newBasisPoints > MAX_BASIS_POINTS) {
             revert InvalidBasisPoints(newBasisPoints);
         }
@@ -173,13 +180,18 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
      * @param projectOwner Address that will own the deployed project
      * @return project Address of the newly deployed project contract
      */
-    function deployNewProject(
-        DataTypes.BrandConfig memory brandConfig,
-        address projectOwner
-    ) external payable nonReentrant returns (address project) {
+    function deployNewProject(DataTypes.BrandConfig memory brandConfig, address projectOwner)
+        external
+        payable
+        nonReentrant
+        returns (address project)
+    {
         if (msg.value != projectCreationFee) {
             revert InvalidFee(msg.value, projectCreationFee);
         }
+
+        // Track creation fee
+        totalCreationFeesCollected += msg.value;
 
         if (projectOwner == address(0)) revert ZeroAddress();
         // Validate brand config
@@ -198,9 +210,7 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
         }
 
         // Generate salt using standard Solidity (simpler and cleaner)
-        bytes32 salt = keccak256(
-            abi.encodePacked(brandConfig.name, brandConfig.symbol)
-        );
+        bytes32 salt = keccak256(abi.encodePacked(brandConfig.name, brandConfig.symbol));
 
         // Check if project already exists with this salt
         if (saltToProject[salt] != address(0)) {
@@ -218,13 +228,7 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
 
         // Fees remain in the contract and can be withdrawn using withdrawFees()
 
-        emit ProjectDeployed(
-            project,
-            projectOwner,
-            brandConfig.name,
-            brandConfig.symbol,
-            block.timestamp
-        );
+        emit ProjectDeployed(project, projectOwner, brandConfig.name, brandConfig.symbol, block.timestamp);
     }
 
     /**
@@ -235,8 +239,8 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
         if (recipient == address(0)) revert ZeroAddress();
         uint256 balance = address(this).balance;
         if (balance == 0) revert InvalidInput("No fees to withdraw");
-        
-        (bool success, ) = payable(recipient).call{value: balance}("");
+
+        (bool success,) = payable(recipient).call{value: balance}("");
         if (!success) revert TransferFailed();
     }
 
@@ -247,6 +251,21 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
      */
     function calculatePlatformFee(uint256 amount) public view returns (uint256 fee) {
         fee = (amount * platformFeeBasisPoints) / MAX_BASIS_POINTS;
+    }
+
+    /**
+     * @notice Get comprehensive factory revenue statistics
+     * @return creationFees Total fees from project creation
+     * @return platformFees Total platform fees received from projects
+     * @return directDeposits Total direct ETH deposits
+     * @return totalBalance Current contract balance
+     */
+    function getRevenueStats()
+        external
+        view
+        returns (uint256 creationFees, uint256 platformFees, uint256 directDeposits, uint256 totalBalance)
+    {
+        return (totalCreationFeesCollected, totalPlatformFeesReceived, totalDirectDeposits, address(this).balance);
     }
 
     /**
@@ -273,10 +292,11 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
      * @return exists True if the combination already exists
      * @return existingProject Address of existing project if it exists
      */
-    function isProjectNameTaken(
-        string memory name,
-        string memory symbol
-    ) external view returns (bool exists, address existingProject) {
+    function isProjectNameTaken(string memory name, string memory symbol)
+        external
+        view
+        returns (bool exists, address existingProject)
+    {
         bytes32 salt = keccak256(abi.encodePacked(name, symbol));
         existingProject = saltToProject[salt];
         exists = existingProject != address(0);

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
+
 import {Ownable} from "solady/auth/Ownable.sol";
 import {DataTypes} from "./DataTypes.sol";
 
@@ -8,11 +9,11 @@ contract ProjectStorage is Ownable {
     DataTypes.BrandConfig public brandConfig;
     address public factory;
     bool public initialized;
+    bool public paused; // Emergency pause flag
 
     // State Variables
     mapping(address => DataTypes.UserSubscription) internal userSubscriptions;
-    mapping(DataTypes.SubscriptionTier => DataTypes.SubscriptionPlan)
-        internal plans;
+    mapping(DataTypes.SubscriptionTier => DataTypes.SubscriptionPlan) internal plans;
 
     // ========== Referral Rewards Storage ==========
     mapping(address => DataTypes.ReferralAccount) public referralAccounts; // Referral account data
@@ -20,4 +21,13 @@ contract ProjectStorage is Ownable {
     uint256 public totalReferralRewardsDistributed; // Total referral rewards distributed
     uint256 public constant REFERRAL_REWARD_RATE = 1000; // 10% in basis points (1000/10000)
     uint256 public constant CLAIM_COOLDOWN = 7 days; // 7-day claim cooldown
+
+    // ========== Statistics Storage ==========
+    uint256 public totalGrossRevenue; // Total gross revenue (before fees)
+    uint256 public totalNetRevenue; // Total net revenue (after all fees and cashback)
+    uint256 public totalPlatformFeesPaid; // Total platform fees paid to factory
+    uint256 public totalCashbackPaid; // Total cashback paid to subscribers
+    uint256 public totalSubscribers; // Total number of subscribers
+    uint256 public totalReferrers; // Total number of unique referrers who earned rewards
+    uint256 public totalValidReferralRevenue; // Total revenue from subscriptions with valid referrers
 }
