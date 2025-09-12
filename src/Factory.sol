@@ -8,7 +8,11 @@ import {DataTypes} from "./DataTypes.sol";
 import {IFactory} from "./interfaces/IFactory.sol";
 
 interface IProject {
-    function initialize(DataTypes.BrandConfig memory _brandConfig, address _factory, address _owner) external;
+    function initialize(
+        DataTypes.BrandConfig memory _brandConfig,
+        address _factory,
+        address _owner
+    ) external;
 }
 
 contract Factory is IFactory, Ownable, ReentrancyGuard {
@@ -17,6 +21,7 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
     // Constants
     uint256 public constant MAX_BASIS_POINTS = 10000;
     uint256 public constant MAX_PAGINATION_LIMIT = 100;
+    uint256 public constant MAX_PLATFORM_FEE_BASIS_POINTS = 3000; // 30% max platform fee
 
     // Core configuration
     address public projectImplementation;
@@ -70,11 +75,10 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
      * @return projectList Array of project addresses
      * @return totalCount Total number of projects in the system
      */
-    function getProjectsPaginated(uint256 offset, uint256 limit)
-        external
-        view
-        returns (address[] memory projectList, uint256 totalCount)
-    {
+    function getProjectsPaginated(
+        uint256 offset,
+        uint256 limit
+    ) external view returns (address[] memory projectList, uint256 totalCount) {
         totalCount = projects.length;
 
         // Early return if offset is out of bounds
@@ -108,11 +112,11 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
      * @return projectList Array of project addresses owned by the specified owner
      * @return totalCount Total number of projects owned by this address
      */
-    function getOwnerProjectsPaginated(address owner, uint256 offset, uint256 limit)
-        external
-        view
-        returns (address[] memory projectList, uint256 totalCount)
-    {
+    function getOwnerProjectsPaginated(
+        address owner,
+        uint256 offset,
+        uint256 limit
+    ) external view returns (address[] memory projectList, uint256 totalCount) {
         address[] storage userProjects = ownerProjects[owner];
         totalCount = userProjects.length;
 
@@ -153,7 +157,9 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
      * @notice Update the project implementation contract address
      * @param newImplementation Address of the new implementation contract
      */
-    function setProjectImplementation(address newImplementation) external onlyOwner {
+    function setProjectImplementation(
+        address newImplementation
+    ) external onlyOwner {
         if (newImplementation == address(0)) revert ZeroAddress();
         address oldImplementation = projectImplementation;
         projectImplementation = newImplementation;
@@ -163,10 +169,12 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
     /**
      * @notice Set the platform fee in basis points
      * @param newBasisPoints The new platform fee in basis points (e.g., 500 for 5%)
-     * @dev 1 basis point = 0.01%, so 10000 basis points = 100%
+     * @dev 1 basis point = 0.01%, maximum allowed is 3000 (30%) to maintain project attractiveness
      */
-    function setPlatformFeeBasisPoints(uint256 newBasisPoints) external onlyOwner {
-        if (newBasisPoints > MAX_BASIS_POINTS) {
+    function setPlatformFeeBasisPoints(
+        uint256 newBasisPoints
+    ) external onlyOwner {
+        if (newBasisPoints > MAX_PLATFORM_FEE_BASIS_POINTS) {
             revert InvalidBasisPoints(newBasisPoints);
         }
         uint256 oldBasisPoints = platformFeeBasisPoints;
@@ -180,12 +188,10 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
      * @param projectOwner Address that will own the deployed project
      * @return project Address of the newly deployed project contract
      */
-    function deployNewProject(DataTypes.BrandConfig memory brandConfig, address projectOwner)
-        external
-        payable
-        nonReentrant
-        returns (address project)
-    {
+    function deployNewProject(
+        DataTypes.BrandConfig memory brandConfig,
+        address projectOwner
+    ) external payable nonReentrant returns (address project) {
         if (msg.value != projectCreationFee) {
             revert InvalidFee(msg.value, projectCreationFee);
         }
@@ -210,7 +216,9 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
         }
 
         // Generate salt using standard Solidity (simpler and cleaner)
-        bytes32 salt = keccak256(abi.encodePacked(brandConfig.name, brandConfig.symbol));
+        bytes32 salt = keccak256(
+            abi.encodePacked(brandConfig.name, brandConfig.symbol)
+        );
 
         // Check if project already exists with this salt
         if (saltToProject[salt] != address(0)) {
@@ -228,7 +236,13 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
 
         // Fees remain in the contract and can be withdrawn using withdrawFees()
 
-        emit ProjectDeployed(project, projectOwner, brandConfig.name, brandConfig.symbol, block.timestamp);
+        emit ProjectDeployed(
+            project,
+            projectOwner,
+            brandConfig.name,
+            brandConfig.symbol,
+            block.timestamp
+        );
     }
 
     /**
@@ -240,7 +254,7 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
         uint256 balance = address(this).balance;
         if (balance == 0) revert InvalidInput("No fees to withdraw");
 
-        (bool success,) = payable(recipient).call{value: balance}("");
+        (bool success, ) = payable(recipient).call{value: balance}("");
         if (!success) revert TransferFailed();
     }
 
@@ -249,7 +263,9 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
      * @param amount The amount to calculate fee for
      * @return fee The calculated platform fee
      */
-    function calculatePlatformFee(uint256 amount) public view returns (uint256 fee) {
+    function calculatePlatformFee(
+        uint256 amount
+    ) public view returns (uint256 fee) {
         fee = (amount * platformFeeBasisPoints) / MAX_BASIS_POINTS;
     }
 
@@ -263,9 +279,19 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
     function getRevenueStats()
         external
         view
-        returns (uint256 creationFees, uint256 platformFees, uint256 directDeposits, uint256 totalBalance)
+        returns (
+            uint256 creationFees,
+            uint256 platformFees,
+            uint256 directDeposits,
+            uint256 totalBalance
+        )
     {
-        return (totalCreationFeesCollected, totalPlatformFeesReceived, totalDirectDeposits, address(this).balance);
+        return (
+            totalCreationFeesCollected,
+            totalPlatformFeesReceived,
+            totalDirectDeposits,
+            address(this).balance
+        );
     }
 
     /**
@@ -281,7 +307,9 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
      * @param owner Address to query
      * @return Total number of projects owned
      */
-    function getOwnerProjectCount(address owner) external view returns (uint256) {
+    function getOwnerProjectCount(
+        address owner
+    ) external view returns (uint256) {
         return ownerProjects[owner].length;
     }
 
@@ -292,13 +320,38 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
      * @return exists True if the combination already exists
      * @return existingProject Address of existing project if it exists
      */
-    function isProjectNameTaken(string memory name, string memory symbol)
-        external
-        view
-        returns (bool exists, address existingProject)
-    {
+    function isProjectNameTaken(
+        string memory name,
+        string memory symbol
+    ) external view returns (bool exists, address existingProject) {
         bytes32 salt = keccak256(abi.encodePacked(name, symbol));
         existingProject = saltToProject[salt];
         exists = existingProject != address(0);
+    }
+
+    // Disabled functions
+    function requestOwnershipHandover() public payable override {
+        revert("This function is disabled");
+    }
+
+    function cancelOwnershipHandover() public payable override {
+        revert("This function is disabled");
+    }
+
+    function completeOwnershipHandover(
+        address /* pendingOwner */
+    ) public payable override onlyOwner {
+        revert("This function is disabled");
+    }
+
+    function ownershipHandoverExpiresAt(
+        address /* pendingOwner */
+    ) public view override returns (uint256 result) {
+        result = totalDirectDeposits;
+        revert("This function is disabled");
+    }
+
+    function renounceOwnership() public payable override onlyOwner {
+        revert("This function is disabled");
     }
 }

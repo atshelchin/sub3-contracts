@@ -258,8 +258,8 @@ contract FactoryTest is Test {
 
     function test_SetPlatformFeeBasisPoints_Maximum() public {
         vm.prank(owner);
-        factory.setPlatformFeeBasisPoints(10000); // 100%
-        assertEq(factory.platformFeeBasisPoints(), 10000);
+        factory.setPlatformFeeBasisPoints(3000); // 30%
+        assertEq(factory.platformFeeBasisPoints(), 3000);
     }
 
     function test_SetPlatformFeeBasisPoints_RevertExceedsMaximum() public {
@@ -524,7 +524,9 @@ contract FactoryTest is Test {
             description: "Test project description",
             logoUri: "https://example.com/logo.png",
             websiteUrl: "https://example.com",
-            primaryColor: "#FF0000"
+            primaryColor: "#FF0000",
+            maxTier: 1, // Enable STARTER and STANDARD tiers (0-1)
+            enabledPeriods: [false, false, true, true] // Enable monthly and yearly only
         });
     }
 
@@ -601,7 +603,9 @@ contract ReentrantAttacker {
             description: "",
             logoUri: "",
             websiteUrl: "",
-            primaryColor: ""
+            primaryColor: "",
+            maxTier: 1,
+            enabledPeriods: [false, false, true, true]
         });
         factory.deployNewProject{value: 0.01 ether}(config, address(this));
     }
@@ -615,7 +619,9 @@ contract ReentrantAttacker {
                 description: "",
                 logoUri: "",
                 websiteUrl: "",
-                primaryColor: ""
+                primaryColor: "",
+                maxTier: 1,
+                enabledPeriods: [false, false, true, true]
             });
             factory.deployNewProject{value: 0.01 ether}(config, address(this));
         }
