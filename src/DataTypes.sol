@@ -13,6 +13,8 @@ library DataTypes {
         string logoUri; // Logo URI
         string websiteUrl; // Website URL
         string primaryColor; // Primary color
+        uint8 maxTier; // Maximum tier enabled (0-3)
+        bool[4] enabledPeriods; // Which periods are enabled [daily, weekly, monthly, yearly]
     }
 
     struct ReferralAccount {
@@ -23,21 +25,22 @@ library DataTypes {
     }
 
     enum SubscriptionTier {
-        PRO, // 0: Pro plan
-        MAX // 1: Max plan
-
+        STARTER,  // 0: Starter plan
+        STANDARD, // 1: Standard plan
+        PRO,      // 2: Pro plan
+        MAX       // 3: Max plan
     }
 
     enum SubscriptionPeriod {
-        MONTHLY, // 0: Monthly payment
-        YEARLY // 1: Yearly payment
-
+        DAILY,   // 0: Daily payment
+        WEEKLY,  // 1: Weekly payment
+        MONTHLY, // 2: Monthly payment
+        YEARLY   // 3: Yearly payment
     }
 
     enum SubscriptionStatus {
         ACTIVE, // 0: Active
         EXPIRED // 1: Expired
-
     }
 
     enum OperationType {
@@ -45,13 +48,12 @@ library DataTypes {
         UPGRADE, // 1: Upgrade
         DOWNGRADE, // 2: Downgrade
         RENEW // 3: Renew
-
     }
 
     struct SubscriptionPlan {
-        SubscriptionTier tier; // Subscription tier
-        uint256 monthlyPrice; // Monthly price (wei)
-        uint256 yearlyPrice; // Yearly price (wei)
+        bool enabled; // Whether this tier is enabled
+        string customName; // Custom name for the tier
+        uint256[4] prices; // Prices for [daily, weekly, monthly, yearly] - 0 means period not available
         string[] features; // Feature list
     }
 
