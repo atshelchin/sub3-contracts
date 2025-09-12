@@ -11,7 +11,8 @@ interface IProject {
     function initialize(
         DataTypes.BrandConfig memory _brandConfig,
         address _factory,
-        address _owner
+        address _owner,
+        uint256[4][4] memory prices
     ) external;
 }
 
@@ -190,7 +191,8 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
      */
     function deployNewProject(
         DataTypes.BrandConfig memory brandConfig,
-        address projectOwner
+        address projectOwner,
+        uint256[4][4] memory prices
     ) external payable nonReentrant returns (address project) {
         if (msg.value != projectCreationFee) {
             revert InvalidFee(msg.value, projectCreationFee);
@@ -226,7 +228,12 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
         }
 
         project = projectImplementation.cloneDeterministic(salt);
-        IProject(project).initialize(brandConfig, address(this), projectOwner);
+        IProject(project).initialize(
+            brandConfig,
+            address(this),
+            projectOwner,
+            prices
+        );
 
         // Store project data
         projects.push(project);

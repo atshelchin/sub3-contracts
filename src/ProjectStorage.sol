@@ -9,8 +9,7 @@ contract ProjectStorage is Ownable {
     DataTypes.BrandConfig public brandConfig;
     address public factory;
     bool public initialized;
-    bool public paused; // Emergency pause flag
-
+    
     // State Variables
     mapping(address => DataTypes.UserSubscription) internal userSubscriptions;
     mapping(DataTypes.SubscriptionTier => DataTypes.SubscriptionPlan) internal plans;
@@ -19,6 +18,7 @@ contract ProjectStorage is Ownable {
     mapping(address => DataTypes.ReferralAccount) public referralAccounts; // Referral account data
     uint256 public totalReferralSubscriptions; // Total referral subscriptions
     uint256 public totalReferralRewardsDistributed; // Total referral rewards distributed
+    uint256 public totalPendingReferralRewards; // Total unclaimed referral rewards
     uint256 public constant REFERRAL_REWARD_RATE = 1000; // 10% in basis points (1000/10000)
     uint256 public constant CLAIM_COOLDOWN = 7 days; // 7-day claim cooldown
 
@@ -30,4 +30,12 @@ contract ProjectStorage is Ownable {
     uint256 public totalSubscribers; // Total number of subscribers
     uint256 public totalReferrers; // Total number of unique referrers who earned rewards
     uint256 public totalValidReferralRevenue; // Total revenue from subscriptions with valid referrers
+    
+    // ========== List Storage for Pagination ==========
+    address[] public subscribersList; // List of all subscribers
+    mapping(address => address[]) public referrerToUsers; // Referrer => list of referred users
+    
+    // ========== Operation History Storage ==========
+    DataTypes.OperationRecord[] public operationHistory; // All operations
+    mapping(address => uint256[]) public userOperationIndices; // User => list of operation indices
 }

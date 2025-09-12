@@ -12,19 +12,20 @@ contract ProjectTest is Test {
     Project projectImpl;
     Project project;
 
-    address owner = address(0x1);
-    address subscriber1 = address(0x2);
-    address subscriber2 = address(0x3);
-    address referrer = address(0x4);
-    address nonSubscriber = address(0x5);
+    address platformOwner = address(0x1);
+    address projectOwner = address(0x2);
+    address subscriber1 = address(0x3);
+    address subscriber2 = address(0x4);
+    address referrer = address(0x5);
+    address nonSubscriber = address(0x6);
 
     DataTypes.BrandConfig brandConfig;
 
     uint256 constant CREATION_FEE = 0.01 ether;
     uint256 constant PRO_MONTHLY = 0.01 ether;
     uint256 constant PRO_YEARLY = 0.1 ether;
-    uint256 constant MAX_MONTHLY = 0.03 ether;
-    uint256 constant MAX_YEARLY = 0.3 ether;
+    uint256 constant MAX_MONTHLY = 0.02 ether;
+    uint256 constant MAX_YEARLY = 0.2 ether;
 
     event Subscribed(
         address indexed user,
@@ -34,7 +35,12 @@ contract ProjectTest is Test {
         uint256 endTime
     );
 
-    event Renewed(address indexed user, DataTypes.SubscriptionPeriod period, uint256 amount, uint256 newEndTime);
+    event Renewed(
+        address indexed user,
+        DataTypes.SubscriptionPeriod period,
+        uint256 amount,
+        uint256 newEndTime
+    );
 
     event Upgraded(
         address indexed user,
@@ -54,22 +60,30 @@ contract ProjectTest is Test {
     );
 
     event ReferralRewardAccrued(
-        address indexed referrer, address indexed subscriber, uint256 referrerReward, uint256 subscriberReward
+        address indexed referrer,
+        address indexed subscriber,
+        uint256 referrerReward,
+        uint256 subscriberReward
     );
 
     event ReferralRewardsClaimed(address indexed referrer, uint256 amount);
 
     event PlanConfigUpdated(
-        DataTypes.SubscriptionTier tier, uint256 monthlyPrice, uint256 yearlyPrice, string[] features
+        DataTypes.SubscriptionTier tier,
+        uint256 monthlyPrice,
+        uint256 yearlyPrice,
+        string[] features
     );
 
     event BrandConfigUpdated(string name, string symbol);
     event Withdrawn(address indexed to, uint256 amount);
 
     function setUp() public {
-        // Deploy factory
+        // Deploy factory as platform owner
+        vm.startPrank(platformOwner);
         projectImpl = new Project();
-        factory = new Factory(owner, address(projectImpl));
+        factory = new Factory(platformOwner, address(projectImpl));
+        vm.stopPrank();
 
         // Setup brand config
         brandConfig = DataTypes.BrandConfig({
@@ -78,14 +92,60 @@ contract ProjectTest is Test {
             description: "Test subscription project",
             logoUri: "https://example.com/logo.png",
             websiteUrl: "https://example.com",
-            primaryColor: "#FF0000"
+            primaryColor: "#FF0000",
+            maxTier: 3, // Enable all 4 tiers (0-3)
+            enabledPeriods: [false, false, true, true], // Enable monthly and yearly only
+            tierNames: ["Starter", "Standard", "Pro", "Max"] // Default tier names
         });
 
-        // Deploy project through factory
-        vm.deal(owner, 1 ether);
-        vm.prank(owner);
-        address projectAddr = factory.deployNewProject{value: CREATION_FEE}(brandConfig, owner);
+        // Setup default prices for all tiers
+        uint256[4][4] memory defaultPrices;
+        // Starter: [daily, weekly, monthly, yearly]
+        defaultPrices[0] = [uint256(0), 0, 0.005 ether, 0.05 ether];
+        // Standard: [daily, weekly, monthly, yearly]
+        defaultPrices[1] = [uint256(0), 0, 0.007 ether, 0.07 ether];
+        // Pro: [daily, weekly, monthly, yearly]
+        defaultPrices[2] = [uint256(0), 0, PRO_MONTHLY, PRO_YEARLY];
+        // Max: [daily, weekly, monthly, yearly]
+        defaultPrices[3] = [uint256(0), 0, MAX_MONTHLY, MAX_YEARLY];
+
+        // Deploy project through factory as project owner
+        vm.deal(projectOwner, 1 ether);
+        vm.prank(projectOwner);
+        address projectAddr = factory.deployNewProject{value: 0.01 ether}(
+            brandConfig,
+            projectOwner,
+            defaultPrices
+        );
         project = Project(payable(projectAddr));
+
+        // Plans are already configured during initialization with prices
+        // We can still update features if needed
+        vm.startPrank(projectOwner);
+        string[] memory proFeatures = new string[](2);
+        proFeatures[0] = "Basic Feature";
+        proFeatures[1] = "Pro Feature";
+
+        string[] memory maxFeatures = new string[](3);
+        maxFeatures[0] = "Basic Feature";
+        maxFeatures[1] = "Pro Feature";
+        maxFeatures[2] = "Max Feature";
+
+        // Update features for PRO and MAX plans (prices were set during initialization)
+        uint256[4] memory proPrices = [uint256(0), 0, PRO_MONTHLY, PRO_YEARLY];
+        project.setPlanConfig(
+            DataTypes.SubscriptionTier.PRO,
+            proPrices,
+            proFeatures
+        );
+
+        uint256[4] memory maxPrices = [uint256(0), 0, MAX_MONTHLY, MAX_YEARLY];
+        project.setPlanConfig(
+            DataTypes.SubscriptionTier.MAX,
+            maxPrices,
+            maxFeatures
+        );
+        vm.stopPrank();
 
         // Fund test accounts
         vm.deal(subscriber1, 10 ether);
@@ -98,7 +158,8 @@ contract ProjectTest is Test {
 
     function test_Initialization() public view {
         // Check brand config
-        (string memory name, string memory symbol,,,,) = project.brandConfig();
+        (string memory name, string memory symbol, , , , , ) = project
+            .brandConfig();
         assertEq(name, "TestProject");
         assertEq(symbol, "TP");
 
@@ -106,7 +167,7 @@ contract ProjectTest is Test {
         assertEq(project.factory(), address(factory));
 
         // Check owner
-        assertEq(project.owner(), owner);
+        assertEq(project.owner(), projectOwner);
 
         // Check initialized
         assertTrue(project.initialized());
@@ -114,21 +175,31 @@ contract ProjectTest is Test {
 
     function test_CannotReinitialize() public {
         vm.expectRevert(IProject.ProjectAlreadyInitialized.selector);
-        project.initialize(brandConfig, address(factory), owner);
+        uint256[4][4] memory emptyPrices;
+        project.initialize(
+            brandConfig,
+            address(factory),
+            projectOwner,
+            emptyPrices
+        );
     }
 
     function test_DefaultPlans() public view {
         // Check PRO plan
-        DataTypes.SubscriptionPlan memory proPlan = project.getPlan(DataTypes.SubscriptionTier.PRO);
-        assertEq(uint256(proPlan.tier), uint256(DataTypes.SubscriptionTier.PRO));
-        assertEq(proPlan.monthlyPrice, PRO_MONTHLY);
-        assertEq(proPlan.yearlyPrice, PRO_YEARLY);
+        DataTypes.SubscriptionPlan memory proPlan = project.getPlan(
+            DataTypes.SubscriptionTier.PRO
+        );
+        assertEq(project.getTierNames()[2], "Pro");
+        assertEq(proPlan.prices[2], PRO_MONTHLY); // Monthly price
+        assertEq(proPlan.prices[3], PRO_YEARLY); // Yearly price
 
         // Check MAX plan
-        DataTypes.SubscriptionPlan memory maxPlan = project.getPlan(DataTypes.SubscriptionTier.MAX);
-        assertEq(uint256(maxPlan.tier), uint256(DataTypes.SubscriptionTier.MAX));
-        assertEq(maxPlan.monthlyPrice, MAX_MONTHLY);
-        assertEq(maxPlan.yearlyPrice, MAX_YEARLY);
+        DataTypes.SubscriptionPlan memory maxPlan = project.getPlan(
+            DataTypes.SubscriptionTier.MAX
+        );
+        assertEq(project.getTierNames()[3], "Max");
+        assertEq(maxPlan.prices[2], MAX_MONTHLY); // Monthly price
+        assertEq(maxPlan.prices[3], MAX_YEARLY); // Yearly price
     }
 
     // ==================== Subscribe Tests ====================
@@ -137,23 +208,45 @@ contract ProjectTest is Test {
         vm.prank(subscriber1);
         vm.expectEmit(true, true, true, false);
         emit Subscribed(
-            subscriber1, DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, PRO_MONTHLY, 0
+            subscriber1,
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            PRO_MONTHLY,
+            0
         );
 
         project.subscribe{value: PRO_MONTHLY}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, address(0)
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
         );
 
         // Check subscription
-        DataTypes.UserSubscription memory sub = project.getUserSubscription(subscriber1);
+        DataTypes.UserSubscription memory sub = project.getUserSubscription(
+            subscriber1
+        );
         assertEq(sub.user, subscriber1);
         assertEq(uint256(sub.tier), uint256(DataTypes.SubscriptionTier.PRO));
-        assertEq(uint256(sub.period), uint256(DataTypes.SubscriptionPeriod.MONTHLY));
+        assertEq(
+            uint256(sub.period),
+            uint256(DataTypes.SubscriptionPeriod.MONTHLY)
+        );
         assertEq(sub.paidAmount, PRO_MONTHLY);
         assertTrue(project.hasActiveSubscription(subscriber1));
 
         // Check statistics
-        (uint256 gross, uint256 net,,,,, uint256 platformFees,) = project.getProjectStats();
+        (
+            uint256 gross,
+            uint256 net,
+            ,
+            ,
+            ,
+            ,
+            ,
+            ,
+            uint256 platformFees,
+
+        ) = project.getProjectStats();
         assertEq(gross, PRO_MONTHLY);
         uint256 expectedPlatformFee = (PRO_MONTHLY * 500) / 10000; // 5%
         assertEq(platformFees, expectedPlatformFee);
@@ -163,12 +256,19 @@ contract ProjectTest is Test {
     function test_SubscribeMaxYearly() public {
         vm.prank(subscriber1);
         project.subscribe{value: MAX_YEARLY}(
-            DataTypes.SubscriptionTier.MAX, DataTypes.SubscriptionPeriod.YEARLY, address(0)
+            DataTypes.SubscriptionTier.MAX,
+            DataTypes.SubscriptionPeriod.YEARLY,
+            address(0)
         );
 
-        DataTypes.UserSubscription memory sub = project.getUserSubscription(subscriber1);
+        DataTypes.UserSubscription memory sub = project.getUserSubscription(
+            subscriber1
+        );
         assertEq(uint256(sub.tier), uint256(DataTypes.SubscriptionTier.MAX));
-        assertEq(uint256(sub.period), uint256(DataTypes.SubscriptionPeriod.YEARLY));
+        assertEq(
+            uint256(sub.period),
+            uint256(DataTypes.SubscriptionPeriod.YEARLY)
+        );
         assertEq(sub.paidAmount, MAX_YEARLY);
     }
 
@@ -176,24 +276,36 @@ contract ProjectTest is Test {
         // First, referrer subscribes
         vm.prank(referrer);
         project.subscribe{value: PRO_MONTHLY}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, address(0)
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
         );
 
         // Then subscriber1 subscribes with referrer
         vm.prank(subscriber1);
         vm.expectEmit(true, true, true, true);
-        emit ReferralRewardAccrued(referrer, subscriber1, PRO_MONTHLY / 10, PRO_MONTHLY / 10);
+        emit ReferralRewardAccrued(
+            referrer,
+            subscriber1,
+            PRO_MONTHLY / 10,
+            PRO_MONTHLY / 10
+        );
 
         project.subscribe{value: PRO_MONTHLY}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, referrer
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            referrer
         );
 
         // Check referrer recorded
-        DataTypes.UserSubscription memory sub = project.getUserSubscription(subscriber1);
+        DataTypes.UserSubscription memory sub = project.getUserSubscription(
+            subscriber1
+        );
         assertEq(sub.referrer, referrer);
 
         // Check referral account
-        DataTypes.ReferralAccount memory refAccount = project.getReferralAccount(referrer);
+        DataTypes.ReferralAccount memory refAccount = project
+            .getReferralAccount(referrer);
         assertEq(refAccount.pendingRewards, PRO_MONTHLY / 10);
         assertEq(refAccount.totalRewards, PRO_MONTHLY / 10);
         assertEq(refAccount.referralCount, 1);
@@ -202,8 +314,18 @@ contract ProjectTest is Test {
         assertEq(sub.totalRewardsEarned, PRO_MONTHLY / 10);
 
         // Check statistics
-        (uint256 gross,,, uint256 referrers, uint256 validRevenue, uint256 rewards,, uint256 cashback) =
-            project.getProjectStats();
+        (
+            uint256 gross,
+            ,
+            ,
+            uint256 referrers,
+            uint256 validRevenue,
+            uint256 rewards,
+            ,
+            ,
+            uint256 platformFees,
+            uint256 cashback
+        ) = project.getProjectStats();
         assertEq(gross, PRO_MONTHLY * 2); // Both subscriptions
         assertEq(referrers, 1);
         assertEq(validRevenue, PRO_MONTHLY); // Only subscriber1's payment had valid referrer
@@ -221,11 +343,14 @@ contract ProjectTest is Test {
         );
 
         // Check no referrer recorded
-        DataTypes.UserSubscription memory sub = project.getUserSubscription(subscriber1);
+        DataTypes.UserSubscription memory sub = project.getUserSubscription(
+            subscriber1
+        );
         assertEq(sub.referrer, address(0));
 
         // Check no referral rewards
-        DataTypes.ReferralAccount memory refAccount = project.getReferralAccount(nonSubscriber);
+        DataTypes.ReferralAccount memory refAccount = project
+            .getReferralAccount(nonSubscriber);
         assertEq(refAccount.pendingRewards, 0);
     }
 
@@ -233,7 +358,9 @@ contract ProjectTest is Test {
         // Referrer subscribes
         vm.prank(referrer);
         project.subscribe{value: PRO_MONTHLY}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, address(0)
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
         );
 
         // Fast forward past expiration
@@ -242,28 +369,37 @@ contract ProjectTest is Test {
         // subscriber1 subscribes with expired referrer
         vm.prank(subscriber1);
         project.subscribe{value: PRO_MONTHLY}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, referrer
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            referrer
         );
 
         // Check no referrer recorded
-        DataTypes.UserSubscription memory sub = project.getUserSubscription(subscriber1);
+        DataTypes.UserSubscription memory sub = project.getUserSubscription(
+            subscriber1
+        );
         assertEq(sub.referrer, address(0));
 
         // Check no new referral rewards
-        DataTypes.ReferralAccount memory refAccount = project.getReferralAccount(referrer);
+        DataTypes.ReferralAccount memory refAccount = project
+            .getReferralAccount(referrer);
         assertEq(refAccount.pendingRewards, 0);
     }
 
     function test_CannotSubscribeTwice() public {
         vm.prank(subscriber1);
         project.subscribe{value: PRO_MONTHLY}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, address(0)
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
         );
 
         vm.prank(subscriber1);
         vm.expectRevert(IProject.AlreadySubscribed.selector);
         project.subscribe{value: PRO_MONTHLY}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, address(0)
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
         );
     }
 
@@ -271,15 +407,30 @@ contract ProjectTest is Test {
         vm.prank(subscriber1);
         vm.expectRevert(IProject.InsufficientPayment.selector);
         project.subscribe{value: PRO_MONTHLY - 1}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, address(0)
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
         );
     }
 
     function test_SubscribeExcessPayment() public {
+        // Test that overpayment up to 120% is accepted
         vm.prank(subscriber1);
+        // This should succeed (120% of PRO_MONTHLY)
+        project.subscribe{value: (PRO_MONTHLY * 12) / 10}(
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
+        );
+
+        // Test that overpayment > 120% reverts
+        vm.prank(subscriber2);
         vm.expectRevert(IProject.ExcessPayment.selector);
-        project.subscribe{value: PRO_MONTHLY + 1}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, address(0)
+        // This should fail (121% of PRO_MONTHLY)
+        project.subscribe{value: (PRO_MONTHLY * 121) / 100}(
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
         );
     }
 
@@ -289,7 +440,9 @@ contract ProjectTest is Test {
         // Subscribe first
         vm.prank(subscriber1);
         project.subscribe{value: PRO_MONTHLY}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, address(0)
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
         );
 
         // Fast forward past expiration
@@ -298,13 +451,27 @@ contract ProjectTest is Test {
         // Renew
         vm.prank(subscriber1);
         vm.expectEmit(true, true, true, false);
-        emit Renewed(subscriber1, DataTypes.SubscriptionPeriod.YEARLY, PRO_YEARLY, 0);
+        emit IProject.Renewed(
+            subscriber1,
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.YEARLY,
+            PRO_YEARLY,
+            0
+        );
 
-        project.renew{value: PRO_YEARLY}(DataTypes.SubscriptionPeriod.YEARLY);
+        project.renew{value: PRO_YEARLY}(
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.YEARLY
+        );
 
         // Check renewed subscription
-        DataTypes.UserSubscription memory sub = project.getUserSubscription(subscriber1);
-        assertEq(uint256(sub.period), uint256(DataTypes.SubscriptionPeriod.YEARLY));
+        DataTypes.UserSubscription memory sub = project.getUserSubscription(
+            subscriber1
+        );
+        assertEq(
+            uint256(sub.period),
+            uint256(DataTypes.SubscriptionPeriod.YEARLY)
+        );
         assertEq(sub.paidAmount, PRO_YEARLY);
         assertTrue(project.hasActiveSubscription(subscriber1));
     }
@@ -312,18 +479,26 @@ contract ProjectTest is Test {
     function test_CannotRenewWhileActive() public {
         vm.prank(subscriber1);
         project.subscribe{value: PRO_MONTHLY}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, address(0)
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
         );
 
         vm.prank(subscriber1);
         vm.expectRevert(IProject.SubscriptionStillActive.selector);
-        project.renew{value: PRO_MONTHLY}(DataTypes.SubscriptionPeriod.MONTHLY);
+        project.renew{value: PRO_MONTHLY}(
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY
+        );
     }
 
     function test_CannotRenewWithoutSubscription() public {
         vm.prank(subscriber1);
         vm.expectRevert(IProject.NoActiveSubscription.selector);
-        project.renew{value: PRO_MONTHLY}(DataTypes.SubscriptionPeriod.MONTHLY);
+        project.renew{value: PRO_MONTHLY}(
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY
+        );
     }
 
     // ==================== Upgrade Tests ====================
@@ -332,7 +507,9 @@ contract ProjectTest is Test {
         // Subscribe to PRO monthly
         vm.prank(subscriber1);
         project.subscribe{value: PRO_MONTHLY}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, address(0)
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
         );
 
         // Calculate upgrade cost
@@ -340,17 +517,30 @@ contract ProjectTest is Test {
         uint256 remainingNewCost = (MAX_MONTHLY * remainingTime) / 30 days;
         uint256 fullPeriodCost = MAX_MONTHLY;
         uint256 remainingOldCredit = (PRO_MONTHLY * remainingTime) / 30 days;
-        uint256 upgradeCost = remainingNewCost + fullPeriodCost - remainingOldCredit;
+        uint256 upgradeCost = remainingNewCost +
+            fullPeriodCost -
+            remainingOldCredit;
 
         // Upgrade to MAX
         vm.prank(subscriber1);
         vm.expectEmit(true, true, true, false);
-        emit Upgraded(subscriber1, DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionTier.MAX, upgradeCost, 0);
+        emit Upgraded(
+            subscriber1,
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionTier.MAX,
+            upgradeCost,
+            0
+        );
 
-        project.upgrade{value: upgradeCost}(DataTypes.SubscriptionTier.MAX);
+        project.upgrade{value: upgradeCost}(
+            DataTypes.SubscriptionTier.MAX,
+            DataTypes.SubscriptionPeriod.MONTHLY
+        );
 
         // Check upgraded subscription
-        DataTypes.UserSubscription memory sub = project.getUserSubscription(subscriber1);
+        DataTypes.UserSubscription memory sub = project.getUserSubscription(
+            subscriber1
+        );
         assertEq(uint256(sub.tier), uint256(DataTypes.SubscriptionTier.MAX));
         assertEq(sub.endTime, block.timestamp + 60 days); // Extended by one period
     }
@@ -358,36 +548,51 @@ contract ProjectTest is Test {
     function test_CannotUpgradeToSameTier() public {
         vm.prank(subscriber1);
         project.subscribe{value: PRO_MONTHLY}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, address(0)
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
         );
 
         vm.prank(subscriber1);
         vm.expectRevert(IProject.CannotUpgradeToSameTier.selector);
-        project.upgrade{value: 1 ether}(DataTypes.SubscriptionTier.PRO);
+        project.upgrade{value: 1 ether}(
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY
+        );
     }
 
     function test_CannotUpgradeToLowerTier() public {
         vm.prank(subscriber1);
         project.subscribe{value: MAX_MONTHLY}(
-            DataTypes.SubscriptionTier.MAX, DataTypes.SubscriptionPeriod.MONTHLY, address(0)
+            DataTypes.SubscriptionTier.MAX,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
         );
 
         vm.prank(subscriber1);
         vm.expectRevert(IProject.InvalidTier.selector);
-        project.upgrade{value: 1 ether}(DataTypes.SubscriptionTier.PRO);
+        project.upgrade{value: 1 ether}(
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY
+        );
     }
 
     function test_CannotUpgradeWhenExpired() public {
         vm.prank(subscriber1);
         project.subscribe{value: PRO_MONTHLY}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, address(0)
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
         );
 
         vm.warp(block.timestamp + 31 days);
 
         vm.prank(subscriber1);
         vm.expectRevert(IProject.NoActiveSubscription.selector);
-        project.upgrade{value: 1 ether}(DataTypes.SubscriptionTier.MAX);
+        project.upgrade{value: 1 ether}(
+            DataTypes.SubscriptionTier.MAX,
+            DataTypes.SubscriptionPeriod.MONTHLY
+        );
     }
 
     // ==================== Downgrade Tests ====================
@@ -396,7 +601,9 @@ contract ProjectTest is Test {
         // Subscribe to MAX
         vm.prank(subscriber1);
         project.subscribe{value: MAX_MONTHLY}(
-            DataTypes.SubscriptionTier.MAX, DataTypes.SubscriptionPeriod.MONTHLY, address(0)
+            DataTypes.SubscriptionTier.MAX,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
         );
 
         // Fast forward past expiration
@@ -414,37 +621,55 @@ contract ProjectTest is Test {
             0
         );
 
-        project.downgrade{value: PRO_YEARLY}(DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.YEARLY);
+        project.downgrade{value: PRO_YEARLY}(
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.YEARLY
+        );
 
         // Check downgraded subscription
-        DataTypes.UserSubscription memory sub = project.getUserSubscription(subscriber1);
+        DataTypes.UserSubscription memory sub = project.getUserSubscription(
+            subscriber1
+        );
         assertEq(uint256(sub.tier), uint256(DataTypes.SubscriptionTier.PRO));
-        assertEq(uint256(sub.period), uint256(DataTypes.SubscriptionPeriod.YEARLY));
+        assertEq(
+            uint256(sub.period),
+            uint256(DataTypes.SubscriptionPeriod.YEARLY)
+        );
         assertTrue(project.hasActiveSubscription(subscriber1));
     }
 
     function test_CannotDowngradeWhileActive() public {
         vm.prank(subscriber1);
         project.subscribe{value: MAX_MONTHLY}(
-            DataTypes.SubscriptionTier.MAX, DataTypes.SubscriptionPeriod.MONTHLY, address(0)
+            DataTypes.SubscriptionTier.MAX,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
         );
 
         vm.prank(subscriber1);
         vm.expectRevert(IProject.SubscriptionStillActive.selector);
-        project.downgrade{value: PRO_MONTHLY}(DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY);
+        project.downgrade{value: PRO_MONTHLY}(
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY
+        );
     }
 
     function test_CannotDowngradeToSameOrHigherTier() public {
         vm.prank(subscriber1);
         project.subscribe{value: PRO_MONTHLY}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, address(0)
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
         );
 
         vm.warp(block.timestamp + 31 days);
 
         vm.prank(subscriber1);
         vm.expectRevert(IProject.CannotDowngradeToSameTier.selector);
-        project.downgrade{value: MAX_MONTHLY}(DataTypes.SubscriptionTier.MAX, DataTypes.SubscriptionPeriod.MONTHLY);
+        project.downgrade{value: MAX_MONTHLY}(
+            DataTypes.SubscriptionTier.MAX,
+            DataTypes.SubscriptionPeriod.MONTHLY
+        );
     }
 
     // ==================== Referral Rewards Tests ====================
@@ -453,13 +678,17 @@ contract ProjectTest is Test {
         // Setup: referrer subscribes
         vm.prank(referrer);
         project.subscribe{value: PRO_MONTHLY}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, address(0)
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
         );
 
         // subscriber1 subscribes with referrer
         vm.prank(subscriber1);
         project.subscribe{value: MAX_MONTHLY}(
-            DataTypes.SubscriptionTier.MAX, DataTypes.SubscriptionPeriod.MONTHLY, referrer
+            DataTypes.SubscriptionTier.MAX,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            referrer
         );
 
         // Wait for cooldown
@@ -476,7 +705,8 @@ contract ProjectTest is Test {
         // Check rewards claimed
         assertEq(referrer.balance - balanceBefore, MAX_MONTHLY / 10);
 
-        DataTypes.ReferralAccount memory refAccount = project.getReferralAccount(referrer);
+        DataTypes.ReferralAccount memory refAccount = project
+            .getReferralAccount(referrer);
         assertEq(refAccount.pendingRewards, 0);
         assertEq(refAccount.totalRewards, MAX_MONTHLY / 10);
     }
@@ -485,12 +715,16 @@ contract ProjectTest is Test {
         // Setup referral
         vm.prank(referrer);
         project.subscribe{value: PRO_MONTHLY}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, address(0)
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
         );
 
         vm.prank(subscriber1);
         project.subscribe{value: PRO_MONTHLY}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, referrer
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            referrer
         );
 
         // Wait for cooldown
@@ -506,7 +740,9 @@ contract ProjectTest is Test {
         // Second user subscribes to generate more rewards
         vm.prank(subscriber2);
         project.subscribe{value: MAX_MONTHLY}(
-            DataTypes.SubscriptionTier.MAX, DataTypes.SubscriptionPeriod.MONTHLY, referrer
+            DataTypes.SubscriptionTier.MAX,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            referrer
         );
 
         // Try to claim again before cooldown expires
@@ -528,33 +764,62 @@ contract ProjectTest is Test {
         features[0] = "Feature 1";
         features[1] = "Feature 2";
 
-        vm.prank(owner);
+        vm.prank(projectOwner);
+        uint256[4] memory newPrices = [uint256(0), 0, 0.02 ether, 0.2 ether];
+
         vm.expectEmit(true, true, true, true);
-        emit PlanConfigUpdated(DataTypes.SubscriptionTier.PRO, 0.02 ether, 0.2 ether, features);
+        emit IProject.PlanConfigUpdated(
+            DataTypes.SubscriptionTier.PRO,
+            newPrices,
+            "Pro",
+            features
+        );
 
-        project.setPlanConfig(DataTypes.SubscriptionTier.PRO, 0.02 ether, 0.2 ether, features);
+        project.setPlanConfig(
+            DataTypes.SubscriptionTier.PRO,
+            newPrices,
+            features
+        );
 
-        DataTypes.SubscriptionPlan memory plan = project.getPlan(DataTypes.SubscriptionTier.PRO);
-        assertEq(plan.monthlyPrice, 0.02 ether);
-        assertEq(plan.yearlyPrice, 0.2 ether);
+        DataTypes.SubscriptionPlan memory plan = project.getPlan(
+            DataTypes.SubscriptionTier.PRO
+        );
+        assertEq(plan.prices[2], 0.02 ether); // Monthly price
+        assertEq(plan.prices[3], 0.2 ether); // Yearly price
         assertEq(plan.features.length, 2);
         assertEq(plan.features[0], "Feature 1");
     }
 
     function test_OnlyOwnerCanSetPlanConfig() public {
         string[] memory features = new string[](0);
+        uint256[4] memory prices = [uint256(0), 0, 0.02 ether, 0.2 ether];
 
         vm.prank(subscriber1);
         vm.expectRevert(); // Ownable unauthorized
-        project.setPlanConfig(DataTypes.SubscriptionTier.PRO, 0.02 ether, 0.2 ether, features);
+        project.setPlanConfig(DataTypes.SubscriptionTier.PRO, prices, features);
     }
 
     function test_CannotSetZeroPrice() public {
+        // This test verifies that zero prices can be set (for disabled periods)
+        // setPlanConfig doesn't validate prices since zero is valid for disabled periods
         string[] memory features = new string[](0);
 
-        vm.prank(owner);
-        vm.expectRevert(IProject.InvalidPrice.selector);
-        project.setPlanConfig(DataTypes.SubscriptionTier.PRO, 0, 0.2 ether, features);
+        uint256[4] memory zeroPrices = [uint256(0), 0, 0, 0]; // All prices are zero
+
+        vm.prank(projectOwner);
+        // This should NOT revert - zero prices are allowed
+        project.setPlanConfig(
+            DataTypes.SubscriptionTier.PRO,
+            zeroPrices,
+            features
+        );
+        
+        // Verify the plan was updated with zero prices
+        DataTypes.SubscriptionPlan memory plan = project.getPlan(DataTypes.SubscriptionTier.PRO);
+        assertEq(plan.prices[0], 0);
+        assertEq(plan.prices[1], 0);
+        assertEq(plan.prices[2], 0);
+        assertEq(plan.prices[3], 0);
     }
 
     function test_UpdateBrandConfig() public {
@@ -564,16 +829,27 @@ contract ProjectTest is Test {
             description: "Updated description",
             logoUri: "https://newlogo.com",
             websiteUrl: "https://newsite.com",
-            primaryColor: "#00FF00"
+            primaryColor: "#00FF00",
+            maxTier: 3,
+            enabledPeriods: [false, false, true, true],
+            tierNames: ["Starter", "Standard", "Pro", "Max"]
         });
 
-        vm.prank(owner);
+        vm.prank(projectOwner);
         vm.expectEmit(true, true, true, true);
         emit BrandConfigUpdated("TestProject", "TP");
 
         project.updateBrandConfig(newConfig);
 
-        (,, string memory desc, string memory logo, string memory website, string memory color) = project.brandConfig();
+        (
+            ,
+            ,
+            string memory desc,
+            string memory logo,
+            string memory website,
+            string memory color,
+
+        ) = project.brandConfig();
         assertEq(desc, "Updated description");
         assertEq(logo, "https://newlogo.com");
         assertEq(website, "https://newsite.com");
@@ -587,17 +863,20 @@ contract ProjectTest is Test {
             description: "Updated",
             logoUri: "",
             websiteUrl: "",
-            primaryColor: ""
+            primaryColor: "",
+            maxTier: 3,
+            enabledPeriods: [false, false, true, true],
+            tierNames: ["Starter", "Standard", "Pro", "Max"]
         });
 
-        vm.prank(owner);
+        vm.prank(projectOwner);
         vm.expectRevert("Name cannot be changed");
         project.updateBrandConfig(newConfig);
 
         newConfig.name = "TestProject";
         newConfig.symbol = "DIFF";
 
-        vm.prank(owner);
+        vm.prank(projectOwner);
         vm.expectRevert("Symbol cannot be changed");
         project.updateBrandConfig(newConfig);
     }
@@ -606,69 +885,125 @@ contract ProjectTest is Test {
         // Add some funds to contract
         vm.deal(address(project), 1 ether);
 
-        uint256 balanceBefore = owner.balance;
+        uint256 balanceBefore = projectOwner.balance;
 
-        vm.prank(owner);
+        vm.prank(projectOwner);
         vm.expectEmit(true, true, true, true);
-        emit Withdrawn(owner, 0.5 ether);
+        emit Withdrawn(projectOwner, 1 ether);
 
-        project.withdraw(owner, 0.5 ether);
+        project.withdraw(projectOwner);
 
-        assertEq(owner.balance - balanceBefore, 0.5 ether);
-        assertEq(address(project).balance, 0.5 ether);
+        assertEq(projectOwner.balance - balanceBefore, 1 ether);
+        assertEq(address(project).balance, 0);
     }
 
     function test_CannotWithdrawMoreThanBalance() public {
-        vm.deal(address(project), 0.5 ether);
-
-        vm.prank(owner);
-        vm.expectRevert(IProject.InsufficientBalance.selector);
-        project.withdraw(owner, 1 ether);
+        // This test is no longer applicable since withdraw() automatically takes all available balance
+        // The protection of referral rewards is tested in test_WithdrawProtectsPendingReferralRewards
+        // We'll test that withdrawing with 0 balance doesn't revert but transfers 0
+        vm.prank(projectOwner);
+        uint256 balanceBefore = projectOwner.balance;
+        project.withdraw(projectOwner);
+        assertEq(projectOwner.balance, balanceBefore); // No change since contract has 0 balance
     }
 
     function test_CannotWithdrawToZeroAddress() public {
         vm.deal(address(project), 1 ether);
 
-        vm.prank(owner);
+        vm.prank(projectOwner);
         vm.expectRevert(IProject.ZeroAddress.selector);
-        project.withdraw(address(0), 0.5 ether);
+        project.withdraw(address(0));
     }
 
-    function test_CannotWithdrawZeroAmount() public {
-        vm.deal(address(project), 1 ether);
+    function test_WithdrawProtectsPendingReferralRewards() public {
+        // Setup: Create subscription with referrer to generate pending rewards
+        address referrer = address(0x456);
+        address subscriber = address(0x789);
 
-        vm.prank(owner);
-        vm.expectRevert(IProject.ZeroAmount.selector);
-        project.withdraw(owner, 0);
+        // First, referrer needs an active subscription
+        // STARTER monthly costs 0.005 ether
+        vm.deal(referrer, 1 ether);
+        vm.prank(referrer);
+        project.subscribe{value: 0.005 ether}(
+            DataTypes.SubscriptionTier.STARTER,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
+        );
+
+        // Now subscriber subscribes with referrer
+        vm.deal(subscriber, 1 ether);
+        vm.prank(subscriber);
+        project.subscribe{value: 0.005 ether}(
+            DataTypes.SubscriptionTier.STARTER,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            referrer
+        );
+
+        // Check that pending rewards exist (10% of 0.005 ether = 0.0005 ether)
+        (, uint256 totalBalance, uint256 reservedForReferrals) = project
+            .getWithdrawableBalance();
+        assertEq(
+            reservedForReferrals,
+            0.0005 ether,
+            "Should have pending referral rewards"
+        );
+
+        // Owner withdraws - should only get balance minus pending rewards
+        uint256 expectedWithdraw = totalBalance - reservedForReferrals;
+        uint256 balanceBefore = projectOwner.balance;
+
+        vm.prank(projectOwner);
+        project.withdraw(projectOwner);
+
+        assertEq(
+            projectOwner.balance - balanceBefore,
+            expectedWithdraw,
+            "Should withdraw only available amount"
+        );
+        assertEq(
+            address(project).balance,
+            reservedForReferrals,
+            "Should keep reserved amount in contract"
+        );
     }
 
     // ==================== View Functions Tests ====================
 
     function test_GetAllPlans() public view {
         DataTypes.SubscriptionPlan[] memory plans = project.getAllPlans();
-        assertEq(plans.length, 2);
-        assertEq(uint256(plans[0].tier), uint256(DataTypes.SubscriptionTier.PRO));
-        assertEq(uint256(plans[1].tier), uint256(DataTypes.SubscriptionTier.MAX));
+        assertEq(plans.length, 4); // All 4 tiers are enabled
+        string[4] memory tierNames = project.getTierNames();
+        assertEq(tierNames[0], "Starter");
+        assertEq(tierNames[1], "Standard");
+        assertEq(tierNames[2], "Pro");
+        assertEq(tierNames[3], "Max");
     }
 
     function test_GetReferralStats() public {
         // Setup referrals
         vm.prank(referrer);
         project.subscribe{value: PRO_MONTHLY}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, address(0)
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
         );
 
         vm.prank(subscriber1);
         project.subscribe{value: PRO_MONTHLY}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, referrer
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            referrer
         );
 
         vm.prank(subscriber2);
         project.subscribe{value: MAX_MONTHLY}(
-            DataTypes.SubscriptionTier.MAX, DataTypes.SubscriptionPeriod.MONTHLY, referrer
+            DataTypes.SubscriptionTier.MAX,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            referrer
         );
 
-        (uint256 totalSubs, uint256 totalRewards) = project.getReferralStats();
+        (uint256 totalSubs, uint256 totalRewards, ) = project
+            .getReferralStats();
         assertEq(totalSubs, 2);
         assertEq(totalRewards, (PRO_MONTHLY + MAX_MONTHLY) / 10);
     }
@@ -677,12 +1012,16 @@ contract ProjectTest is Test {
         // Setup
         vm.prank(referrer);
         project.subscribe{value: PRO_MONTHLY}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, address(0)
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
         );
 
         vm.prank(subscriber1);
         project.subscribe{value: MAX_MONTHLY}(
-            DataTypes.SubscriptionTier.MAX, DataTypes.SubscriptionPeriod.MONTHLY, referrer
+            DataTypes.SubscriptionTier.MAX,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            referrer
         );
 
         uint256 rewards = project.getUserTotalRewards(subscriber1);
@@ -693,12 +1032,16 @@ contract ProjectTest is Test {
         // Create subscriptions with referrals
         vm.prank(referrer);
         project.subscribe{value: PRO_MONTHLY}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, address(0)
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
         );
 
         vm.prank(subscriber1);
         project.subscribe{value: MAX_MONTHLY}(
-            DataTypes.SubscriptionTier.MAX, DataTypes.SubscriptionPeriod.MONTHLY, referrer
+            DataTypes.SubscriptionTier.MAX,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            referrer
         );
 
         (
@@ -708,6 +1051,8 @@ contract ProjectTest is Test {
             uint256 referrers,
             uint256 validReferralRevenue,
             uint256 referralRewards,
+            uint256 pendingRewards,
+            uint256 refSubscriptions,
             uint256 platformFees,
             uint256 cashbackPaid
         ) = project.getProjectStats();
@@ -724,8 +1069,15 @@ contract ProjectTest is Test {
         uint256 expectedPlatformFees = (totalRevenue * 500) / 10000;
         assertEq(platformFees, expectedPlatformFees);
 
-        // Net revenue: gross - platform fees - cashback
-        assertEq(netRevenue, totalRevenue - expectedPlatformFees - (MAX_MONTHLY / 10));
+        // Net revenue: gross - platform fees - cashback - referrer rewards
+        // Note: referrer rewards and cashback are both MAX_MONTHLY / 10
+        assertEq(
+            netRevenue,
+            totalRevenue -
+                expectedPlatformFees -
+                (MAX_MONTHLY / 10) -
+                (MAX_MONTHLY / 10)
+        );
     }
 
     // ==================== Edge Cases and Security Tests ====================
@@ -741,7 +1093,7 @@ contract ProjectTest is Test {
 
         vm.prank(subscriber1);
         vm.expectRevert(IProject.InvalidTier.selector);
-        (bool success,) = address(project).call{value: 1 ether}(data);
+        (bool success, ) = address(project).call{value: 1 ether}(data);
         require(!success, "Call should have reverted");
     }
 
@@ -756,7 +1108,7 @@ contract ProjectTest is Test {
 
         vm.prank(subscriber1);
         vm.expectRevert(IProject.InvalidPeriod.selector);
-        (bool success,) = address(project).call{value: 1 ether}(data);
+        (bool success, ) = address(project).call{value: 1 ether}(data);
         require(!success, "Call should have reverted");
     }
 
@@ -769,13 +1121,17 @@ contract ProjectTest is Test {
         // First subscribe as attacker to have something to claim
         vm.prank(address(attacker));
         project.subscribe{value: PRO_MONTHLY}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, address(0)
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
         );
 
         // Now have someone subscribe with attacker as referrer
         vm.prank(subscriber1);
         project.subscribe{value: PRO_MONTHLY}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, address(attacker)
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(attacker)
         );
 
         // Wait for cooldown
@@ -791,7 +1147,7 @@ contract ProjectTest is Test {
         uint256 balanceBefore = address(project).balance;
         vm.deal(subscriber1, 1 ether);
         vm.prank(subscriber1);
-        (bool success,) = address(project).call{value: 0.1 ether}("");
+        (bool success, ) = address(project).call{value: 0.1 ether}("");
         assertTrue(success);
         assertEq(address(project).balance - balanceBefore, 0.1 ether);
     }
@@ -800,7 +1156,9 @@ contract ProjectTest is Test {
         // Referrer subscribes
         vm.prank(referrer);
         project.subscribe{value: PRO_MONTHLY}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, address(0)
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
         );
 
         // Multiple users subscribe with same referrer
@@ -810,12 +1168,15 @@ contract ProjectTest is Test {
             vm.deal(subscribers[i], 1 ether);
             vm.prank(subscribers[i]);
             project.subscribe{value: PRO_MONTHLY}(
-                DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, referrer
+                DataTypes.SubscriptionTier.PRO,
+                DataTypes.SubscriptionPeriod.MONTHLY,
+                referrer
             );
         }
 
         // Check referral account
-        DataTypes.ReferralAccount memory refAccount = project.getReferralAccount(referrer);
+        DataTypes.ReferralAccount memory refAccount = project
+            .getReferralAccount(referrer);
         assertEq(refAccount.referralCount, 5);
         assertEq(refAccount.pendingRewards, (PRO_MONTHLY * 5) / 10);
         assertEq(refAccount.totalRewards, (PRO_MONTHLY * 5) / 10);
@@ -825,22 +1186,220 @@ contract ProjectTest is Test {
         // Setup with referral
         vm.prank(referrer);
         project.subscribe{value: PRO_MONTHLY}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, address(0)
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
         );
 
         vm.prank(subscriber1);
         project.subscribe{value: PRO_MONTHLY}(
-            DataTypes.SubscriptionTier.PRO, DataTypes.SubscriptionPeriod.MONTHLY, referrer
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            referrer
         );
 
         // Upgrade should also process referral rewards
         uint256 upgradeCost = MAX_MONTHLY * 2 - PRO_MONTHLY; // Simplified calculation
         vm.prank(subscriber1);
-        project.upgrade{value: upgradeCost}(DataTypes.SubscriptionTier.MAX);
+        project.upgrade{value: upgradeCost}(
+            DataTypes.SubscriptionTier.MAX,
+            DataTypes.SubscriptionPeriod.MONTHLY
+        );
 
         // Check additional rewards
-        DataTypes.ReferralAccount memory refAccount = project.getReferralAccount(referrer);
+        DataTypes.ReferralAccount memory refAccount = project
+            .getReferralAccount(referrer);
         assertTrue(refAccount.pendingRewards > PRO_MONTHLY / 10);
+    }
+
+    // ==================== Pagination Tests ====================
+
+    function test_GetSubscribersPaginated() public {
+        // Create multiple subscribers
+        address[] memory users = new address[](15);
+        for (uint i = 0; i < 15; i++) {
+            users[i] = address(uint160(200 + i));
+            vm.deal(users[i], 1 ether);
+            vm.prank(users[i]);
+            project.subscribe{value: PRO_MONTHLY}(
+                DataTypes.SubscriptionTier.PRO,
+                DataTypes.SubscriptionPeriod.MONTHLY,
+                address(0)
+            );
+        }
+
+        // Test first page
+        (
+            address[] memory page1Addresses,
+            DataTypes.UserSubscription[] memory page1Subs,
+            uint256 total1
+        ) = project.getSubscribersPaginated(0, 10);
+
+        assertEq(page1Addresses.length, 10);
+        assertEq(page1Subs.length, 10);
+        assertEq(total1, 15);
+
+        // Test second page
+        (
+            address[] memory page2Addresses,
+            DataTypes.UserSubscription[] memory page2Subs,
+            uint256 total2
+        ) = project.getSubscribersPaginated(10, 10);
+
+        assertEq(page2Addresses.length, 5); // Only 5 remaining
+        assertEq(page2Subs.length, 5);
+        assertEq(total2, 15);
+
+        // Verify no overlap between pages
+        for (uint i = 0; i < page1Addresses.length; i++) {
+            for (uint j = 0; j < page2Addresses.length; j++) {
+                assertTrue(page1Addresses[i] != page2Addresses[j]);
+            }
+        }
+
+        // Test limit enforcement
+        (address[] memory limitedAddresses, , ) = project
+            .getSubscribersPaginated(0, 150); // Over limit
+
+        assertEq(limitedAddresses.length, 15); // Should return actual count, not exceed total
+    }
+
+    function test_GetReferralsPaginated() public {
+        // Referrer subscribes first
+        vm.prank(referrer);
+        project.subscribe{value: PRO_MONTHLY}(
+            DataTypes.SubscriptionTier.PRO,
+            DataTypes.SubscriptionPeriod.MONTHLY,
+            address(0)
+        );
+
+        // Create multiple referrals
+        address[] memory referredUsers = new address[](12);
+        for (uint i = 0; i < 12; i++) {
+            referredUsers[i] = address(uint160(300 + i));
+            vm.deal(referredUsers[i], 1 ether);
+            vm.prank(referredUsers[i]);
+            project.subscribe{value: PRO_MONTHLY}(
+                DataTypes.SubscriptionTier.PRO,
+                DataTypes.SubscriptionPeriod.MONTHLY,
+                referrer
+            );
+        }
+
+        // Test first page of referrals
+        (address[] memory page1, uint256 total1) = project
+            .getReferralsPaginated(referrer, 0, 10);
+
+        assertEq(page1.length, 10);
+        assertEq(total1, 12);
+
+        // Test second page
+        (address[] memory page2, uint256 total2) = project
+            .getReferralsPaginated(referrer, 10, 10);
+
+        assertEq(page2.length, 2); // Only 2 remaining
+        assertEq(total2, 12);
+
+        // Test non-referrer returns empty
+        (address[] memory emptyList, uint256 emptyTotal) = project
+            .getReferralsPaginated(subscriber1, 0, 10);
+
+        assertEq(emptyList.length, 0);
+        assertEq(emptyTotal, 0);
+    }
+
+    function test_PlatformFeeWithdrawal() public {
+        // Generate revenue - use the exact MAX_YEARLY price
+        vm.prank(subscriber1);
+        project.subscribe{value: MAX_YEARLY}(
+            DataTypes.SubscriptionTier.MAX,
+            DataTypes.SubscriptionPeriod.YEARLY,
+            address(0)
+        );
+
+        // Platform fees should be automatically sent to factory (including creation fee)
+        uint256 actualBalance = address(factory).balance;
+        uint256 expectedPlatformFee = (MAX_YEARLY * 500) / 10000; // 5% of subscription
+        uint256 creationFee = 0.01 ether; // From setUp
+        assertEq(actualBalance, expectedPlatformFee + creationFee);
+
+        // Platform owner withdraws from factory
+        vm.startPrank(platformOwner);
+        uint256 platformBalanceBefore = platformOwner.balance;
+
+        factory.withdrawFees(platformOwner);
+
+        assertEq(
+            platformOwner.balance - platformBalanceBefore,
+            expectedPlatformFee + creationFee
+        );
+        assertEq(address(factory).balance, 0);
+
+        vm.stopPrank();
+    }
+
+    function _createDefaultPrices()
+        internal
+        pure
+        returns (uint256[4][4] memory)
+    {
+        uint256[4][4] memory prices;
+        // Starter: [daily, weekly, monthly, yearly]
+        prices[0] = [uint256(0), 0, 0.001 ether, 0.01 ether];
+        // Standard: [daily, weekly, monthly, yearly]
+        prices[1] = [uint256(0), 0, 0.002 ether, 0.02 ether];
+        // Pro: [daily, weekly, monthly, yearly]
+        prices[2] = [uint256(0), 0, 0.003 ether, 0.03 ether];
+        // Max: [daily, weekly, monthly, yearly]
+        prices[3] = [uint256(0), 0, 0.004 ether, 0.04 ether];
+        return prices;
+    }
+
+    function test_FactoryProjectManagement() public {
+        // Deploy multiple projects
+        address[] memory projectOwners = new address[](5);
+        address[] memory projects = new address[](5);
+
+        for (uint i = 0; i < 5; i++) {
+            projectOwners[i] = address(uint160(400 + i));
+
+            DataTypes.BrandConfig memory config = DataTypes.BrandConfig({
+                name: string.concat("Proj", vm.toString(i)),
+                symbol: string.concat("P", vm.toString(i % 10)),
+                description: "Test project",
+                logoUri: "",
+                websiteUrl: "",
+                primaryColor: "",
+                maxTier: 3,
+                enabledPeriods: [false, false, true, true],
+                tierNames: ["Starter", "Standard", "Pro", "Max"]
+            });
+
+            vm.deal(projectOwners[i], 1 ether);
+            vm.prank(projectOwners[i]);
+            projects[i] = factory.deployNewProject{value: 0.01 ether}(
+                config,
+                projectOwners[i],
+                _createDefaultPrices()
+            );
+        }
+
+        // Test factory's project pagination
+        (address[] memory page1, uint256 total) = factory.getProjectsPaginated(
+            0,
+            3
+        );
+
+        assertEq(page1.length, 3);
+        assertEq(total, 6); // 5 new + 1 from setUp
+
+        // Test owner-specific projects
+        (address[] memory ownerProjects, uint256 ownerTotal) = factory
+            .getOwnerProjectsPaginated(projectOwners[0], 0, 10);
+
+        assertEq(ownerProjects.length, 1);
+        assertEq(ownerProjects[0], projects[0]);
+        assertEq(ownerTotal, 1);
     }
 }
 

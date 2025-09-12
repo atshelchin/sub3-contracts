@@ -15,6 +15,7 @@ library DataTypes {
         string primaryColor; // Primary color
         uint8 maxTier; // Maximum tier enabled (0-3)
         bool[4] enabledPeriods; // Which periods are enabled [daily, weekly, monthly, yearly]
+        string[4] tierNames; // Custom names for each tier [Starter, Standard, Pro, Max]
     }
 
     struct ReferralAccount {
@@ -52,7 +53,6 @@ library DataTypes {
 
     struct SubscriptionPlan {
         bool enabled; // Whether this tier is enabled
-        string customName; // Custom name for the tier
         uint256[4] prices; // Prices for [daily, weekly, monthly, yearly] - 0 means period not available
         string[] features; // Feature list
     }
@@ -64,7 +64,20 @@ library DataTypes {
         SubscriptionPeriod period; // Payment period
         uint256 startTime; // Start timestamp
         uint256 endTime; // End timestamp
-        uint256 paidAmount; // Amount paid
+        uint256 paidAmount; // Amount paid for current period
         uint256 totalRewardsEarned; // Total rewards earned by user
+        uint256 totalSpent; // Total cumulative amount spent
+    }
+    
+    struct OperationRecord {
+        address user; // User who performed the operation
+        OperationType operationType; // Type of operation
+        SubscriptionTier fromTier; // Previous tier (for upgrade/downgrade)
+        SubscriptionTier toTier; // New tier
+        SubscriptionPeriod fromPeriod; // Previous period (for changes)
+        SubscriptionPeriod toPeriod; // New period
+        uint256 amount; // Amount paid
+        uint256 timestamp; // When the operation occurred
+        uint256 newEndTime; // New subscription end time
     }
 }

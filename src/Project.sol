@@ -17,47 +17,42 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
     }
 
     modifier validTier(DataTypes.SubscriptionTier tier) {
-        if (uint256(tier) > uint256(DataTypes.SubscriptionTier.MAX)) {
+        if (uint256(tier) > uint256(brandConfig.maxTier)) {
             revert InvalidTier();
         }
         _;
     }
 
     modifier validPeriod(DataTypes.SubscriptionPeriod period) {
-        if (uint256(period) > uint256(DataTypes.SubscriptionPeriod.YEARLY)) {
+        uint256 periodIndex = uint256(period);
+        if (periodIndex > 3 || !brandConfig.enabledPeriods[periodIndex]) {
             revert InvalidPeriod();
         }
         _;
     }
 
     // ==================== Initialization ====================
-    function initialize(DataTypes.BrandConfig memory _brandConfig, address _factory, address _owner) external {
+    function initialize(
+        DataTypes.BrandConfig memory _brandConfig,
+        address _factory,
+        address _owner,
+        uint256[4][4] memory prices
+    ) external {
         if (initialized) revert ProjectAlreadyInitialized();
         initialized = true;
         brandConfig = _brandConfig;
         factory = _factory;
         _initializeOwner(_owner);
 
-        // Initialize default plans
-        _initializeDefaultPlans();
-    }
-
-    function _initializeDefaultPlans() private {
-        // PRO Plan
-        plans[DataTypes.SubscriptionTier.PRO] = DataTypes.SubscriptionPlan({
-            tier: DataTypes.SubscriptionTier.PRO,
-            monthlyPrice: 0.01 ether,
-            yearlyPrice: 0.1 ether, // ~17% discount
-            features: new string[](0)
-        });
-
-        // MAX Plan
-        plans[DataTypes.SubscriptionTier.MAX] = DataTypes.SubscriptionPlan({
-            tier: DataTypes.SubscriptionTier.MAX,
-            monthlyPrice: 0.03 ether,
-            yearlyPrice: 0.3 ether, // ~17% discount
-            features: new string[](0)
-        });
+        // Initialize plans for each enabled tier
+        for (uint8 i = 0; i <= brandConfig.maxTier; i++) {
+            DataTypes.SubscriptionTier tier = DataTypes.SubscriptionTier(i);
+            plans[tier] = DataTypes.SubscriptionPlan({
+                enabled: true,
+                prices: prices[i],
+                features: new string[](0)
+            });
+        }
     }
 
     // ==================== Admin Functions ====================
@@ -66,23 +61,24 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
      * @notice Set subscription plan configuration
      * @dev Only owner can call this function to update pricing and features
      * @param tier Subscription tier to update
-     * @param monthlyPrice Monthly subscription price in wei
-     * @param yearlyPrice Yearly subscription price in wei
+     * @param prices Array of prices for [daily, weekly, monthly, yearly]
      * @param features Array of feature descriptions
      */
     function setPlanConfig(
         DataTypes.SubscriptionTier tier,
-        uint256 monthlyPrice,
-        uint256 yearlyPrice,
+        uint256[4] memory prices,
         string[] memory features
     ) external onlyOwner whenInitialized validTier(tier) {
-        if (monthlyPrice == 0 || yearlyPrice == 0) revert InvalidPrice();
-
-        plans[tier].monthlyPrice = monthlyPrice;
-        plans[tier].yearlyPrice = yearlyPrice;
+        plans[tier].prices = prices;
         plans[tier].features = features;
+        plans[tier].enabled = true;
 
-        emit PlanConfigUpdated(tier, monthlyPrice, yearlyPrice, features);
+        emit PlanConfigUpdated(
+            tier,
+            prices,
+            brandConfig.tierNames[uint8(tier)],
+            features
+        );
     }
 
     /**
@@ -90,34 +86,49 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
      * @dev Only owner can update brand settings except name and symbol
      * @param newConfig New brand configuration
      */
-    function updateBrandConfig(DataTypes.BrandConfig memory newConfig) external onlyOwner whenInitialized {
+    function updateBrandConfig(
+        DataTypes.BrandConfig memory newConfig
+    ) external onlyOwner whenInitialized {
         // Name and symbol must remain the same
-        require(keccak256(bytes(newConfig.name)) == keccak256(bytes(brandConfig.name)), "Name cannot be changed");
-        require(keccak256(bytes(newConfig.symbol)) == keccak256(bytes(brandConfig.symbol)), "Symbol cannot be changed");
+        require(
+            keccak256(bytes(newConfig.name)) ==
+                keccak256(bytes(brandConfig.name)),
+            "Name cannot be changed"
+        );
+        require(
+            keccak256(bytes(newConfig.symbol)) ==
+                keccak256(bytes(brandConfig.symbol)),
+            "Symbol cannot be changed"
+        );
 
-        // Update other fields
+        // Update all configurable fields
         brandConfig.description = newConfig.description;
         brandConfig.logoUri = newConfig.logoUri;
         brandConfig.websiteUrl = newConfig.websiteUrl;
         brandConfig.primaryColor = newConfig.primaryColor;
+        brandConfig.maxTier = newConfig.maxTier;
+        brandConfig.enabledPeriods = newConfig.enabledPeriods;
+        brandConfig.tierNames = newConfig.tierNames;
 
         emit BrandConfigUpdated(brandConfig.name, brandConfig.symbol);
     }
 
     /**
-     * @notice Withdraw contract balance
+     * @notice Withdraw contract balance (excluding pending referral rewards)
      * @dev Only owner can call this function with reentrancy protection
+     * @dev Cannot withdraw funds reserved for referral rewards
      * @param to Recipient address
-     * @param amount Amount to withdraw in wei
      */
-    function withdraw(address to, uint256 amount) external onlyOwner nonReentrant {
+    function withdraw(address to) external onlyOwner nonReentrant {
         if (to == address(0)) revert ZeroAddress();
-        if (amount == 0) revert ZeroAmount();
-        if (address(this).balance < amount) revert InsufficientBalance();
 
-        _safeTransfer(to, amount);
+        // Calculate withdrawable balance (total balance - pending referral rewards)
+        uint256 withdrawableBalance = address(this).balance -
+            totalPendingReferralRewards;
 
-        emit Withdrawn(to, amount);
+        _safeTransfer(to, withdrawableBalance);
+
+        emit Withdrawn(to, withdrawableBalance);
     }
 
     // ==================== Subscription Functions ====================
@@ -129,7 +140,11 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
      * @param period Payment period (MONTHLY or YEARLY)
      * @param referrer Optional referrer address (must have active subscription)
      */
-    function subscribe(DataTypes.SubscriptionTier tier, DataTypes.SubscriptionPeriod period, address referrer)
+    function subscribe(
+        DataTypes.SubscriptionTier tier,
+        DataTypes.SubscriptionPeriod period,
+        address referrer
+    )
         external
         payable
         whenInitialized
@@ -137,8 +152,12 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
         validPeriod(period)
         nonReentrant
     {
+        // Check if this is a first-time subscriber (before updating the subscription)
+        bool isFirstTimeSubscriber = userSubscriptions[msg.sender].user ==
+            address(0);
+
         // Check first-time subscriber
-        if (userSubscriptions[msg.sender].user != address(0)) revert AlreadySubscribed();
+        if (!isFirstTimeSubscriber) revert AlreadySubscribed();
 
         // Validate referrer
         address validReferrer;
@@ -162,11 +181,15 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
             startTime: block.timestamp,
             endTime: endTime,
             paidAmount: msg.value,
-            totalRewardsEarned: 0
+            totalRewardsEarned: 0,
+            totalSpent: msg.value
         });
 
-        // Update subscriber count
-        totalSubscribers++;
+        // Update subscriber count and list (only for first-time subscribers)
+        if (isFirstTimeSubscriber) {
+            subscribersList.push(msg.sender);
+            totalSubscribers++;
+        }
 
         // Check if this creates a new referrer (only if valid)
         if (validReferrer != address(0)) {
@@ -174,59 +197,105 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
             if (referralAccounts[validReferrer].referralCount == 0) {
                 totalReferrers++;
             }
+            // Add to referrer's list of referred users
+            referrerToUsers[validReferrer].push(msg.sender);
         }
 
         // Process payment and rewards
         _processPayment(msg.sender, msg.value);
 
+        // Record operation
+        _recordOperation(
+            msg.sender,
+            DataTypes.OperationType.SUBSCRIBE,
+            DataTypes.SubscriptionTier.STARTER, // No previous tier for new subscription
+            tier,
+            DataTypes.SubscriptionPeriod.DAILY, // No previous period
+            period,
+            msg.value,
+            endTime
+        );
+
         emit Subscribed(msg.sender, tier, period, msg.value, endTime);
     }
 
     /**
-     * @notice Renew expired subscription with same tier
-     * @dev Can only renew after subscription expires
-     * @param period Payment period for renewal (MONTHLY or YEARLY)
+     * @notice Renew expired subscription with flexible tier and period
+     * @dev Can only renew after subscription expires, allows changing both tier and period
+     * @param tier Subscription tier for renewal
+     * @param period Payment period for renewal
      */
-    function renew(DataTypes.SubscriptionPeriod period)
+    function renew(
+        DataTypes.SubscriptionTier tier,
+        DataTypes.SubscriptionPeriod period
+    )
         external
         payable
         whenInitialized
+        validTier(tier)
         validPeriod(period)
         nonReentrant
     {
-        DataTypes.UserSubscription storage subscription = userSubscriptions[msg.sender];
+        DataTypes.UserSubscription storage subscription = userSubscriptions[
+            msg.sender
+        ];
 
         _requireSubscriptionExists(msg.sender);
         _requireExpiredSubscription(msg.sender);
 
-        uint256 price = _getPrice(subscription.tier, period);
+        // Store old values for history
+        DataTypes.SubscriptionTier oldTier = subscription.tier;
+        DataTypes.SubscriptionPeriod oldPeriod = subscription.period;
+
+        uint256 price = _getPrice(tier, period);
         _validatePayment(price);
 
-        // Update subscription
+        // Update subscription - can change both tier and period on renewal
+        subscription.tier = tier;
+        subscription.period = period;
         subscription.startTime = block.timestamp;
         subscription.endTime = block.timestamp + _getDuration(period);
-        subscription.period = period;
         subscription.paidAmount = msg.value;
+        subscription.totalSpent += msg.value;
 
         // Process payment and rewards (statistics updated inside)
         _processPayment(msg.sender, msg.value);
 
-        emit Renewed(msg.sender, period, msg.value, subscription.endTime);
+        // Record operation
+        _recordOperation(
+            msg.sender,
+            DataTypes.OperationType.RENEW,
+            oldTier,
+            tier,
+            oldPeriod,
+            period,
+            msg.value,
+            subscription.endTime
+        );
+
+        emit Renewed(msg.sender, tier, period, msg.value, subscription.endTime);
     }
 
     /**
-     * @notice Upgrade subscription to higher tier
+     * @notice Upgrade subscription to higher tier with optional period change
      * @dev Extends subscription by one period from current end date with upgraded tier
      * @param newTier New subscription tier (must be higher than current)
+     * @param newPeriod New subscription period
      */
-    function upgrade(DataTypes.SubscriptionTier newTier)
+    function upgrade(
+        DataTypes.SubscriptionTier newTier,
+        DataTypes.SubscriptionPeriod newPeriod
+    )
         external
         payable
         whenInitialized
         validTier(newTier)
+        validPeriod(newPeriod)
         nonReentrant
     {
-        DataTypes.UserSubscription storage subscription = userSubscriptions[msg.sender];
+        DataTypes.UserSubscription storage subscription = userSubscriptions[
+            msg.sender
+        ];
 
         _requireActiveSubscription(msg.sender);
 
@@ -236,14 +305,20 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
 
         // Calculate upgrade cost safely
         uint256 remainingTime = subscription.endTime - block.timestamp;
-        uint256 periodDuration = _getDuration(subscription.period);
-        uint256 newTierPrice = _getPrice(newTier, subscription.period);
-        uint256 currentTierPrice = _getPrice(subscription.tier, subscription.period);
+        uint256 currentPeriodDuration = _getDuration(subscription.period);
+        uint256 newPeriodDuration = _getDuration(newPeriod);
+        uint256 newTierPrice = _getPrice(newTier, newPeriod);
+
+        // Use the actual amount paid by the user, not current price
+        // This ensures fair credit calculation even if prices changed
+        uint256 actualPaidAmount = subscription.paidAmount;
 
         // Calculate costs separately to avoid underflow
-        uint256 remainingNewCost = (newTierPrice * remainingTime) / periodDuration;
+        uint256 remainingNewCost = (newTierPrice * remainingTime) /
+            newPeriodDuration;
         uint256 fullPeriodCost = newTierPrice;
-        uint256 remainingOldCredit = (currentTierPrice * remainingTime) / periodDuration;
+        uint256 remainingOldCredit = (actualPaidAmount * remainingTime) /
+            currentPeriodDuration;
 
         // Ensure no underflow
         uint256 upgradeCost = remainingNewCost + fullPeriodCost;
@@ -257,14 +332,37 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
 
         // Update subscription
         DataTypes.SubscriptionTier oldTier = subscription.tier;
+        DataTypes.SubscriptionPeriod oldPeriod = subscription.period;
         subscription.tier = newTier;
-        subscription.endTime = subscription.endTime + periodDuration;
-        subscription.paidAmount = subscription.paidAmount + msg.value;
+        subscription.period = newPeriod;
+        subscription.endTime = subscription.endTime + newPeriodDuration;
+        // Set paidAmount to the full price of the new tier/period (not accumulated)
+        // This represents what the user would pay for a full period at this tier
+        subscription.paidAmount = newTierPrice;
+        subscription.totalSpent += msg.value;
 
         // Process payment and rewards (statistics updated inside)
         _processPayment(msg.sender, msg.value);
 
-        emit Upgraded(msg.sender, oldTier, newTier, msg.value, subscription.endTime);
+        // Record operation
+        _recordOperation(
+            msg.sender,
+            DataTypes.OperationType.UPGRADE,
+            oldTier,
+            newTier,
+            oldPeriod,
+            newPeriod,
+            msg.value,
+            subscription.endTime
+        );
+
+        emit Upgraded(
+            msg.sender,
+            oldTier,
+            newTier,
+            msg.value,
+            subscription.endTime
+        );
     }
 
     /**
@@ -273,7 +371,10 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
      * @param newTier New subscription tier (must be lower than current)
      * @param period Payment period for the downgraded plan
      */
-    function downgrade(DataTypes.SubscriptionTier newTier, DataTypes.SubscriptionPeriod period)
+    function downgrade(
+        DataTypes.SubscriptionTier newTier,
+        DataTypes.SubscriptionPeriod period
+    )
         external
         payable
         whenInitialized
@@ -281,7 +382,9 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
         validPeriod(period)
         nonReentrant
     {
-        DataTypes.UserSubscription storage subscription = userSubscriptions[msg.sender];
+        DataTypes.UserSubscription storage subscription = userSubscriptions[
+            msg.sender
+        ];
 
         _requireSubscriptionExists(msg.sender);
         _requireExpiredSubscription(msg.sender);
@@ -294,16 +397,37 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
 
         // Update subscription
         DataTypes.SubscriptionTier oldTier = subscription.tier;
+        DataTypes.SubscriptionPeriod oldPeriod = subscription.period;
         subscription.tier = newTier;
         subscription.period = period;
         subscription.startTime = block.timestamp;
         subscription.endTime = block.timestamp + _getDuration(period);
         subscription.paidAmount = msg.value;
+        subscription.totalSpent += msg.value;
 
         // Process payment and rewards (statistics updated inside)
         _processPayment(msg.sender, msg.value);
 
-        emit Downgraded(msg.sender, oldTier, newTier, period, msg.value, subscription.endTime);
+        // Record operation
+        _recordOperation(
+            msg.sender,
+            DataTypes.OperationType.DOWNGRADE,
+            oldTier,
+            newTier,
+            oldPeriod,
+            period,
+            msg.value,
+            subscription.endTime
+        );
+
+        emit Downgraded(
+            msg.sender,
+            oldTier,
+            newTier,
+            period,
+            msg.value,
+            subscription.endTime
+        );
     }
 
     // ==================== Referral Functions ====================
@@ -313,7 +437,9 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
      * @dev Can only claim once every 7 days
      */
     function claimReferralRewards() external nonReentrant {
-        DataTypes.ReferralAccount storage account = referralAccounts[msg.sender];
+        DataTypes.ReferralAccount storage account = referralAccounts[
+            msg.sender
+        ];
 
         // Check if there are rewards to claim
         if (account.pendingRewards == 0) {
@@ -329,11 +455,141 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
         account.pendingRewards = 0;
         account.lastClaimTime = block.timestamp;
 
+        // Update total pending rewards
+        totalPendingReferralRewards -= rewardAmount;
+
         // Transfer rewards
-        (bool success,) = payable(msg.sender).call{value: rewardAmount}("");
+        (bool success, ) = payable(msg.sender).call{value: rewardAmount}("");
         if (!success) revert TransferFailed();
 
         emit ReferralRewardsClaimed(msg.sender, rewardAmount);
+    }
+
+    // ==================== View Functions ====================
+
+    /**
+     * @notice Get complete brand configuration including arrays
+     * @return Complete BrandConfig struct with all fields
+     */
+    function getBrandConfig()
+        external
+        view
+        returns (DataTypes.BrandConfig memory)
+    {
+        return brandConfig;
+    }
+
+    /**
+     * @notice Get enabled periods array from brand configuration
+     * @return Array of enabled periods [Daily, Weekly, Monthly, Yearly]
+     */
+    function getEnabledPeriods() external view returns (bool[4] memory) {
+        return brandConfig.enabledPeriods;
+    }
+
+    /**
+     * @notice Get tier names array from brand configuration
+     * @return Array of tier names [Starter, Standard, Pro, Max] or custom names
+     */
+    function getTierNames() external view returns (string[4] memory) {
+        return brandConfig.tierNames;
+    }
+
+    /**
+     * @notice Get list of subscribers with pagination
+     * @param offset Starting index
+     * @param limit Maximum number to return (capped at 100)
+     * @return subscribers Array of subscriber addresses
+     * @return subscriptions Array of subscription data
+     * @return total Total number of subscribers
+     */
+    function getSubscribersPaginated(
+        uint256 offset,
+        uint256 limit
+    )
+        external
+        view
+        whenInitialized
+        returns (
+            address[] memory subscribers,
+            DataTypes.UserSubscription[] memory subscriptions,
+            uint256 total
+        )
+    {
+        total = subscribersList.length;
+
+        // Early return if offset is out of bounds
+        if (offset >= total) {
+            return (
+                new address[](0),
+                new DataTypes.UserSubscription[](0),
+                total
+            );
+        }
+
+        // Cap limit to prevent excessive gas usage
+        if (limit > 100) {
+            limit = 100;
+        }
+
+        // Calculate actual items to return
+        uint256 remaining = total - offset;
+        uint256 returnCount = remaining < limit ? remaining : limit;
+
+        // Create return arrays
+        subscribers = new address[](returnCount);
+        subscriptions = new DataTypes.UserSubscription[](returnCount);
+
+        // Populate arrays
+        for (uint256 i = 0; i < returnCount; i++) {
+            address subscriber = subscribersList[offset + i];
+            subscribers[i] = subscriber;
+            subscriptions[i] = userSubscriptions[subscriber];
+        }
+    }
+
+    /**
+     * @notice Get list of users referred by a referrer
+     * @param referrer The referrer address
+     * @param offset Starting index
+     * @param limit Maximum number to return
+     * @return referredUsers Array of referred user addresses
+     * @return total Total number of referrals
+     */
+    function getReferralsPaginated(
+        address referrer,
+        uint256 offset,
+        uint256 limit
+    )
+        external
+        view
+        whenInitialized
+        returns (address[] memory referredUsers, uint256 total)
+    {
+        address[] storage referrals = referrerToUsers[referrer];
+        total = referrals.length;
+
+        // Early return if offset is out of bounds
+        if (offset >= total) {
+            return (new address[](0), total);
+        }
+
+        // Cap limit to prevent excessive gas usage
+        if (limit > 100) {
+            limit = 100;
+        }
+
+        // Calculate actual items to return
+        uint256 remaining = total - offset;
+        uint256 returnCount = remaining < limit ? remaining : limit;
+
+        // Create return array
+        referredUsers = new address[](returnCount);
+
+        // Populate array
+        for (uint256 i = 0; i < returnCount; i++) {
+            referredUsers[i] = referrals[offset + i];
+        }
     }
 
     // ==================== View Functions ====================
@@ -343,7 +599,9 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
      * @param tier Subscription tier to query
      * @return plan Plan details including prices and features
      */
-    function getPlan(DataTypes.SubscriptionTier tier)
+    function getPlan(
+        DataTypes.SubscriptionTier tier
+    )
         external
         view
         whenInitialized
@@ -357,10 +615,16 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
      * @notice Get all available subscription plans
      * @return allPlans Array of all subscription plans
      */
-    function getAllPlans() external view whenInitialized returns (DataTypes.SubscriptionPlan[] memory allPlans) {
-        allPlans = new DataTypes.SubscriptionPlan[](2);
-        allPlans[0] = plans[DataTypes.SubscriptionTier.PRO];
-        allPlans[1] = plans[DataTypes.SubscriptionTier.MAX];
+    function getAllPlans()
+        external
+        view
+        whenInitialized
+        returns (DataTypes.SubscriptionPlan[] memory allPlans)
+    {
+        allPlans = new DataTypes.SubscriptionPlan[](brandConfig.maxTier + 1);
+        for (uint8 i = 0; i <= brandConfig.maxTier; i++) {
+            allPlans[i] = plans[DataTypes.SubscriptionTier(i)];
+        }
         return allPlans;
     }
 
@@ -369,7 +633,9 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
      * @param user User address to query
      * @return subscription User's subscription details
      */
-    function getUserSubscription(address user)
+    function getUserSubscription(
+        address user
+    )
         external
         view
         whenInitialized
@@ -383,7 +649,9 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
      * @param user User address to check
      * @return True if subscription is active, false otherwise
      */
-    function hasActiveSubscription(address user) external view whenInitialized returns (bool) {
+    function hasActiveSubscription(
+        address user
+    ) external view whenInitialized returns (bool) {
         return userSubscriptions[user].endTime > block.timestamp;
     }
 
@@ -392,12 +660,9 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
      * @param referrer Referrer address to query
      * @return account Referral account details
      */
-    function getReferralAccount(address referrer)
-        external
-        view
-        whenInitialized
-        returns (DataTypes.ReferralAccount memory)
-    {
+    function getReferralAccount(
+        address referrer
+    ) external view whenInitialized returns (DataTypes.ReferralAccount memory) {
         return referralAccounts[referrer];
     }
 
@@ -405,14 +670,23 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
      * @notice Get global referral statistics
      * @return totalSubscriptions Total number of referral subscriptions
      * @return totalRewards Total rewards distributed
+     * @return pendingRewards Total pending referral rewards not yet claimed
      */
     function getReferralStats()
         external
         view
         whenInitialized
-        returns (uint256 totalSubscriptions, uint256 totalRewards)
+        returns (
+            uint256 totalSubscriptions,
+            uint256 totalRewards,
+            uint256 pendingRewards
+        )
     {
-        return (totalReferralSubscriptions, totalReferralRewardsDistributed);
+        return (
+            totalReferralSubscriptions,
+            totalReferralRewardsDistributed,
+            totalPendingReferralRewards
+        );
     }
 
     /**
@@ -420,20 +694,24 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
      * @param user User address to query
      * @return totalRewards Total rewards earned by the user
      */
-    function getUserTotalRewards(address user) external view whenInitialized returns (uint256) {
+    function getUserTotalRewards(
+        address user
+    ) external view whenInitialized returns (uint256) {
         return userSubscriptions[user].totalRewardsEarned;
     }
 
     /**
-     * @notice Get comprehensive project statistics
-     * @dev Returns all key metrics for display
+     * @notice Get comprehensive project statistics (all total-related stats)
+     * @dev Returns all 10 total statistics for complete overview
      * @return grossRevenue Total gross revenue (before any fees)
-     * @return netRevenue Total net revenue (actual contract balance retained)
+     * @return netRevenue Total net revenue (after all fees and cashback)
      * @return subscribers Total number of subscribers
-     * @return referrers Total number of active referrers
+     * @return referrers Total number of unique referrers who earned rewards
      * @return validReferralRevenue Revenue from subscriptions with valid referrers
-     * @return referralRewards Total referral rewards pending/claimed
-     * @return platformFees Total platform fees paid
+     * @return referralRewardsDistributed Total referral rewards distributed
+     * @return pendingReferralRewards Total unclaimed referral rewards
+     * @return referralSubscriptions Total referral subscriptions
+     * @return platformFees Total platform fees paid to factory
      * @return cashbackPaid Total cashback paid to subscribers
      */
     function getProjectStats()
@@ -446,7 +724,9 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
             uint256 subscribers,
             uint256 referrers,
             uint256 validReferralRevenue,
-            uint256 referralRewards,
+            uint256 referralRewardsDistributed,
+            uint256 pendingReferralRewards,
+            uint256 referralSubscriptions,
             uint256 platformFees,
             uint256 cashbackPaid
         )
@@ -458,48 +738,178 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
             totalReferrers,
             totalValidReferralRevenue,
             totalReferralRewardsDistributed,
+            totalPendingReferralRewards,
+            totalReferralSubscriptions,
             totalPlatformFeesPaid,
             totalCashbackPaid
         );
     }
 
-    // ==================== Internal Functions ====================
-
-    function _getPrice(DataTypes.SubscriptionTier tier, DataTypes.SubscriptionPeriod period)
-        private
+    /**
+     * @notice Get withdrawable balance for project owner
+     * @return withdrawableAmount Amount that can be withdrawn (excluding pending referral rewards)
+     * @return totalBalance Total contract balance
+     * @return reservedForReferrals Amount reserved for pending referral rewards
+     */
+    function getWithdrawableBalance()
+        external
         view
-        returns (uint256)
+        whenInitialized
+        returns (
+            uint256 withdrawableAmount,
+            uint256 totalBalance,
+            uint256 reservedForReferrals
+        )
     {
-        DataTypes.SubscriptionPlan storage plan = plans[tier];
-        return period == DataTypes.SubscriptionPeriod.MONTHLY ? plan.monthlyPrice : plan.yearlyPrice;
+        totalBalance = address(this).balance;
+        reservedForReferrals = totalPendingReferralRewards;
+        withdrawableAmount = totalBalance > reservedForReferrals
+            ? totalBalance - reservedForReferrals
+            : 0;
     }
 
-    function _getDuration(DataTypes.SubscriptionPeriod period) private pure returns (uint256) {
-        return period == DataTypes.SubscriptionPeriod.MONTHLY ? 30 days : 365 days;
+    /**
+     * @notice Get all operation history with pagination
+     * @param offset Starting index for pagination
+     * @param limit Maximum number of records to return (capped at 100)
+     * @return records Array of operation records
+     * @return total Total number of operations
+     */
+    function getOperationHistoryPaginated(
+        uint256 offset,
+        uint256 limit
+    )
+        external
+        view
+        whenInitialized
+        returns (DataTypes.OperationRecord[] memory records, uint256 total)
+    {
+        total = operationHistory.length;
+
+        // Early return if offset is out of bounds
+        if (offset >= total) {
+            return (new DataTypes.OperationRecord[](0), total);
+        }
+
+        // Cap limit to prevent excessive gas usage
+        if (limit > 100) {
+            limit = 100;
+        }
+
+        // Calculate actual items to return
+        uint256 remaining = total - offset;
+        uint256 returnCount = remaining < limit ? remaining : limit;
+
+        // Create return array
+        records = new DataTypes.OperationRecord[](returnCount);
+
+        // Populate array
+        for (uint256 i = 0; i < returnCount; i++) {
+            records[i] = operationHistory[offset + i];
+        }
+    }
+
+    /**
+     * @notice Get operation history for a specific user with pagination
+     * @param user User address to query
+     * @param offset Starting index for pagination
+     * @param limit Maximum number of records to return (capped at 100)
+     * @return records Array of operation records for the user
+     * @return total Total number of operations for this user
+     */
+    function getUserOperationHistoryPaginated(
+        address user,
+        uint256 offset,
+        uint256 limit
+    )
+        external
+        view
+        whenInitialized
+        returns (DataTypes.OperationRecord[] memory records, uint256 total)
+    {
+        uint256[] storage userOps = userOperationIndices[user];
+        total = userOps.length;
+
+        // Early return if offset is out of bounds
+        if (offset >= total) {
+            return (new DataTypes.OperationRecord[](0), total);
+        }
+
+        // Cap limit to prevent excessive gas usage
+        if (limit > 100) {
+            limit = 100;
+        }
+
+        // Calculate actual items to return
+        uint256 remaining = total - offset;
+        uint256 returnCount = remaining < limit ? remaining : limit;
+
+        // Create return array
+        records = new DataTypes.OperationRecord[](returnCount);
+
+        // Populate array with user's operations
+        for (uint256 i = 0; i < returnCount; i++) {
+            uint256 operationIndex = userOps[offset + i];
+            records[i] = operationHistory[operationIndex];
+        }
+    }
+
+    // ==================== Internal Functions ====================
+
+    function _getPrice(
+        DataTypes.SubscriptionTier tier,
+        DataTypes.SubscriptionPeriod period
+    ) private view returns (uint256) {
+        DataTypes.SubscriptionPlan storage plan = plans[tier];
+        uint256 periodIndex = uint256(period);
+        require(plan.enabled, "Tier not enabled");
+        require(brandConfig.enabledPeriods[periodIndex], "Period not enabled");
+        uint256 price = plan.prices[periodIndex];
+        require(price > 0, "Price not set for this period");
+        return price;
+    }
+
+    function _getDuration(
+        DataTypes.SubscriptionPeriod period
+    ) private pure returns (uint256) {
+        if (period == DataTypes.SubscriptionPeriod.DAILY) return 1 days;
+        if (period == DataTypes.SubscriptionPeriod.WEEKLY) return 7 days;
+        if (period == DataTypes.SubscriptionPeriod.MONTHLY) return 30 days;
+        return 365 days; // YEARLY
     }
 
     function _validatePayment(uint256 expectedAmount) private view {
         if (msg.value != expectedAmount) {
             if (msg.value < expectedAmount) revert InsufficientPayment();
-            else revert ExcessPayment();
+            if (msg.value > (expectedAmount * 12) / 10) revert ExcessPayment();
         }
     }
 
-    function _processPayment(address subscriber, uint256 paymentAmount) private {
+    function _processPayment(
+        address subscriber,
+        uint256 paymentAmount
+    ) private {
         // Cache storage reads
-        DataTypes.UserSubscription storage subscription = userSubscriptions[subscriber];
+        DataTypes.UserSubscription storage subscription = userSubscriptions[
+            subscriber
+        ];
         address referrer = subscription.referrer;
 
         // Calculate fees
-        uint256 platformFee = IFactory(factory).calculatePlatformFee(paymentAmount);
+        uint256 platformFee = IFactory(factory).calculatePlatformFee(
+            paymentAmount
+        );
         uint256 cashback;
+        uint256 referrerReward;
         bool hasValidReferrer;
 
         if (referrer != address(0)) {
             uint256 referrerEndTime = userSubscriptions[referrer].endTime;
             hasValidReferrer = referrerEndTime > block.timestamp;
             if (hasValidReferrer) {
+                // Both cashback and referrer reward are 10% each
                 cashback = (paymentAmount * REFERRAL_REWARD_RATE) / 10000;
+                referrerReward = (paymentAmount * REFERRAL_REWARD_RATE) / 10000;
             }
         }
 
@@ -514,10 +924,15 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
         if (hasValidReferrer) {
             totalCashbackPaid += cashback;
             totalValidReferralRevenue += paymentAmount;
+            // Note: totalReferralRewardsDistributed is updated in _processReferralRewards
         }
 
-        // Calculate net revenue (what actually stays in the contract)
-        uint256 netAmount = paymentAmount - platformFee - cashback;
+        // Calculate net revenue (what actually stays in the contract for project owner)
+        // Must deduct: platform fee, cashback to subscriber, and referrer rewards
+        uint256 netAmount = paymentAmount -
+            platformFee -
+            cashback -
+            referrerReward;
         totalNetRevenue += netAmount;
 
         // Execute transfers
@@ -534,7 +949,7 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
     }
 
     function _safeTransfer(address to, uint256 amount) private {
-        (bool success,) = payable(to).call{value: amount}("");
+        (bool success, ) = payable(to).call{value: amount}("");
         if (!success) revert TransferFailed();
     }
 
@@ -556,32 +971,101 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
         }
     }
 
-    function _processReferralRewards(address referrer, address subscriber, uint256 paymentAmount) private {
+    function _recordOperation(
+        address user,
+        DataTypes.OperationType opType,
+        DataTypes.SubscriptionTier fromTier,
+        DataTypes.SubscriptionTier toTier,
+        DataTypes.SubscriptionPeriod fromPeriod,
+        DataTypes.SubscriptionPeriod toPeriod,
+        uint256 amount,
+        uint256 newEndTime
+    ) private {
+        DataTypes.OperationRecord memory record = DataTypes.OperationRecord({
+            user: user,
+            operationType: opType,
+            fromTier: fromTier,
+            toTier: toTier,
+            fromPeriod: fromPeriod,
+            toPeriod: toPeriod,
+            amount: amount,
+            timestamp: block.timestamp,
+            newEndTime: newEndTime
+        });
+
+        uint256 operationIndex = operationHistory.length;
+        operationHistory.push(record);
+        userOperationIndices[user].push(operationIndex);
+    }
+
+    function _processReferralRewards(
+        address referrer,
+        address subscriber,
+        uint256 paymentAmount
+    ) private {
         // Calculate 10% rewards
         uint256 rewardAmount = (paymentAmount * REFERRAL_REWARD_RATE) / 10000;
 
         // Update referrer's account (referrer gets 10% reward to claim later)
-        DataTypes.ReferralAccount storage referrerAccount = referralAccounts[referrer];
+        DataTypes.ReferralAccount storage referrerAccount = referralAccounts[
+            referrer
+        ];
         referrerAccount.pendingRewards += rewardAmount;
         referrerAccount.totalRewards += rewardAmount;
 
+        // Track total pending rewards
+        totalPendingReferralRewards += rewardAmount;
+
         // Only count as new referral on first subscription
         if (
-            userSubscriptions[subscriber].referrer == referrer
-                && userSubscriptions[subscriber].startTime == block.timestamp
+            userSubscriptions[subscriber].referrer == referrer &&
+            userSubscriptions[subscriber].startTime == block.timestamp
         ) {
             referrerAccount.referralCount++;
             totalReferralSubscriptions++;
         }
 
         // Update subscriber's cashback tracking (separate from referrer rewards)
-        DataTypes.UserSubscription storage subscription = userSubscriptions[subscriber];
+        DataTypes.UserSubscription storage subscription = userSubscriptions[
+            subscriber
+        ];
         subscription.totalRewardsEarned += rewardAmount;
 
         // Track only referrer rewards in totalReferralRewardsDistributed
         totalReferralRewardsDistributed += rewardAmount;
 
-        emit ReferralRewardAccrued(referrer, subscriber, rewardAmount, rewardAmount);
+        emit ReferralRewardAccrued(
+            referrer,
+            subscriber,
+            rewardAmount,
+            rewardAmount
+        );
+    }
+
+    // Disabled functions
+    function requestOwnershipHandover() public payable override {
+        revert("This function is disabled");
+    }
+
+    function cancelOwnershipHandover() public payable override {
+        revert("This function is disabled");
+    }
+
+    function completeOwnershipHandover(
+        address /* pendingOwner */
+    ) public payable override onlyOwner {
+        revert("This function is disabled");
+    }
+
+    function ownershipHandoverExpiresAt(
+        address /* pendingOwner */
+    ) public view override returns (uint256 result) {
+        result = brandConfig.maxTier;
+        revert("This function is disabled");
+    }
+
+    function renounceOwnership() public payable override onlyOwner {
+        revert("This function is disabled");
     }
 
     // ==================== Receive Function ====================
