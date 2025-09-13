@@ -3,7 +3,8 @@
     "allow": [
       "Bash(forge test:*)",
       "Bash(forge build:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(open subscription-ui.html)"
     ],
     "deny": [],
     "ask": []
