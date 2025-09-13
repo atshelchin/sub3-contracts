@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "../src/Factory.sol";
 import {Project} from "../src/Project.sol";
+import {ProjectReaderImpl} from "../src/ProjectReaderImpl.sol";
 import "../src/DataTypes.sol";
 
 /**
@@ -14,6 +15,7 @@ contract CoverageTest is Test {
     Factory public factory;
     Project public projectImpl;
     Project public project;
+    ProjectReaderImpl public reader;
     
     address public factoryOwner = address(0x1);
     address public projectOwner = address(0x2);
@@ -57,6 +59,11 @@ contract CoverageTest is Test {
             prices
         );
         project = Project(payable(projectAddr));
+        
+        // Deploy and set reader implementation
+        reader = new ProjectReaderImpl();
+        vm.prank(projectOwner);
+        project.setReaderImplementation(address(reader));
     }
     
     // ==================== Factory Untested Functions ====================
@@ -90,8 +97,13 @@ contract CoverageTest is Test {
     
     // ==================== Project Untested Functions ====================
     
-    function test_Project_GetBrandConfig() public view {
-        DataTypes.BrandConfig memory config = project.getBrandConfig();
+    function test_Project_GetBrandConfig() public {
+        // Call view function through fallback proxy
+        (bool success, bytes memory data) = address(project).staticcall(
+            abi.encodeWithSignature("getBrandConfig()")
+        );
+        require(success, "getBrandConfig failed");
+        DataTypes.BrandConfig memory config = abi.decode(data, (DataTypes.BrandConfig));
         
         assertEq(config.name, "TestProject", "Name should match");
         assertEq(config.symbol, "TP", "Symbol should match");
@@ -102,7 +114,11 @@ contract CoverageTest is Test {
     }
     
     function test_Project_GetEnabledPeriods() public view {
-        bool[4] memory periods = project.getEnabledPeriods();
+        (bool success2, bytes memory data2) = address(project).staticcall(
+            abi.encodeWithSignature("getEnabledPeriods()")
+        );
+        require(success2, "getEnabledPeriods failed");
+        bool[4] memory periods = abi.decode(data2, (bool[4]));
         
         assertFalse(periods[0], "Daily should be disabled");
         assertFalse(periods[1], "Weekly should be disabled");
@@ -131,8 +147,12 @@ contract CoverageTest is Test {
         vm.stopPrank();
         
         // Get global operation history
+        (bool success3, bytes memory data3) = address(project).staticcall(
+            abi.encodeWithSignature("getOperationHistoryPaginated(uint256,uint256)", 0, 10)
+        );
+        require(success3, "getOperationHistoryPaginated failed");
         (DataTypes.OperationRecord[] memory records, uint256 total) = 
-            project.getOperationHistoryPaginated(0, 10);
+            abi.decode(data3, (DataTypes.OperationRecord[], uint256));
         
         assertEq(total, 2, "Should have 2 operations");
         assertEq(records.length, 2, "Should return 2 records");
@@ -140,8 +160,12 @@ contract CoverageTest is Test {
         assertEq(uint8(records[1].operationType), uint8(DataTypes.OperationType.RENEW), "Second should be renew");
         
         // Get user operation history
+        (bool success4, bytes memory data4) = address(project).staticcall(
+            abi.encodeWithSignature("getUserOperationHistoryPaginated(address,uint256,uint256)", subscriber, 0, 10)
+        );
+        require(success4, "getUserOperationHistoryPaginated failed");
         (DataTypes.OperationRecord[] memory userRecords, uint256 userTotal) = 
-            project.getUserOperationHistoryPaginated(subscriber, 0, 10);
+            abi.decode(data4, (DataTypes.OperationRecord[], uint256));
         
         assertEq(userTotal, 2, "User should have 2 operations");
         assertEq(userRecords.length, 2, "Should return 2 user records");
@@ -158,8 +182,12 @@ contract CoverageTest is Test {
             address(0)
         );
         
+        (bool success5, bytes memory data5) = address(project).staticcall(
+            abi.encodeWithSignature("getWithdrawableBalance()")
+        );
+        require(success5, "getWithdrawableBalance failed");
         (uint256 withdrawable, uint256 total, uint256 reserved) = 
-            project.getWithdrawableBalance();
+            abi.decode(data5, (uint256, uint256, uint256));
         
         assertGt(total, 0, "Should have total balance");
         assertEq(withdrawable, total - reserved, "Withdrawable should be total minus reserved");
@@ -169,14 +197,22 @@ contract CoverageTest is Test {
     
     function test_Project_HasActiveSubscription_False() public view {
         // Test with user who never subscribed
-        bool hasActive = project.hasActiveSubscription(address(0x999));
+        (bool successActive, bytes memory dataActive) = address(project).staticcall(
+            abi.encodeWithSignature("hasActiveSubscription(address)", address(0x999))
+        );
+        require(successActive, "hasActiveSubscription failed");
+        bool hasActive = abi.decode(dataActive, (bool));
         assertFalse(hasActive, "Non-subscriber should not have active subscription");
     }
     
     function test_Project_GetReferralAccount_Empty() public view {
         // Test with user who never referred anyone
+        (bool success6, bytes memory data6) = address(project).staticcall(
+            abi.encodeWithSignature("getReferralAccount(address)", address(0x999))
+        );
+        require(success6, "getReferralAccount failed");
         DataTypes.ReferralAccount memory account = 
-            project.getReferralAccount(address(0x999));
+            abi.decode(data6, (DataTypes.ReferralAccount));
         
         assertEq(account.referralCount, 0, "Should have no referrals");
         assertEq(account.totalRewards, 0, "Should have no rewards");

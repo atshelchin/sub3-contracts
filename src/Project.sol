@@ -5,9 +5,11 @@ import {DataTypes} from "./DataTypes.sol";
 import {ProjectStorage} from "./ProjectStorage.sol";
 import {ReentrancyGuard} from "solady/utils/ReentrancyGuard.sol";
 import {IFactory} from "./interfaces/IFactory.sol";
-import {IProject} from "./interfaces/IProject.sol";
+import {IProjectWrite} from "./interfaces/IProjectWrite.sol";
 
-contract Project is IProject, ProjectStorage, ReentrancyGuard {
+contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
+    // Reader implementation for view functions
+    address public readerImplementation;
     // Events and Errors are defined in IProject interface
 
     // ==================== Modifiers ====================
@@ -465,394 +467,17 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
         emit ReferralRewardsClaimed(msg.sender, rewardAmount);
     }
 
-    // ==================== View Functions ====================
-
+    // ==================== Reader Implementation Setup ====================
+    
     /**
-     * @notice Get complete brand configuration including arrays
-     * @return Complete BrandConfig struct with all fields
+     * @notice Set the reader implementation contract
+     * @param _readerImplementation Address of the reader contract
      */
-    function getBrandConfig()
-        external
-        view
-        returns (DataTypes.BrandConfig memory)
-    {
-        return brandConfig;
+    function setReaderImplementation(address _readerImplementation) external onlyOwner {
+        readerImplementation = _readerImplementation;
     }
 
-    /**
-     * @notice Get enabled periods array from brand configuration
-     * @return Array of enabled periods [Daily, Weekly, Monthly, Yearly]
-     */
-    function getEnabledPeriods() external view returns (bool[4] memory) {
-        return brandConfig.enabledPeriods;
-    }
-
-    /**
-     * @notice Get tier names array from brand configuration
-     * @return Array of tier names [Starter, Standard, Pro, Max] or custom names
-     */
-    function getTierNames() external view returns (string[4] memory) {
-        return brandConfig.tierNames;
-    }
-
-    /**
-     * @notice Get list of subscribers with pagination
-     * @param offset Starting index
-     * @param limit Maximum number to return (capped at 100)
-     * @return subscribers Array of subscriber addresses
-     * @return subscriptions Array of subscription data
-     * @return total Total number of subscribers
-     */
-    function getSubscribersPaginated(
-        uint256 offset,
-        uint256 limit
-    )
-        external
-        view
-        whenInitialized
-        returns (
-            address[] memory subscribers,
-            DataTypes.UserSubscription[] memory subscriptions,
-            uint256 total
-        )
-    {
-        total = subscribersList.length;
-
-        // Early return if offset is out of bounds
-        if (offset >= total) {
-            return (
-                new address[](0),
-                new DataTypes.UserSubscription[](0),
-                total
-            );
-        }
-
-        // Cap limit to prevent excessive gas usage
-        if (limit > 100) {
-            limit = 100;
-        }
-
-        // Calculate actual items to return
-        uint256 remaining = total - offset;
-        uint256 returnCount = remaining < limit ? remaining : limit;
-
-        // Create return arrays
-        subscribers = new address[](returnCount);
-        subscriptions = new DataTypes.UserSubscription[](returnCount);
-
-        // Populate arrays
-        for (uint256 i = 0; i < returnCount; i++) {
-            address subscriber = subscribersList[offset + i];
-            subscribers[i] = subscriber;
-            subscriptions[i] = userSubscriptions[subscriber];
-        }
-    }
-
-    /**
-     * @notice Get list of users referred by a referrer
-     * @param referrer The referrer address
-     * @param offset Starting index
-     * @param limit Maximum number to return
-     * @return referredUsers Array of referred user addresses
-     * @return total Total number of referrals
-     */
-    function getReferralsPaginated(
-        address referrer,
-        uint256 offset,
-        uint256 limit
-    )
-        external
-        view
-        whenInitialized
-        returns (address[] memory referredUsers, uint256 total)
-    {
-        address[] storage referrals = referrerToUsers[referrer];
-        total = referrals.length;
-
-        // Early return if offset is out of bounds
-        if (offset >= total) {
-            return (new address[](0), total);
-        }
-
-        // Cap limit to prevent excessive gas usage
-        if (limit > 100) {
-            limit = 100;
-        }
-
-        // Calculate actual items to return
-        uint256 remaining = total - offset;
-        uint256 returnCount = remaining < limit ? remaining : limit;
-
-        // Create return array
-        referredUsers = new address[](returnCount);
-
-        // Populate array
-        for (uint256 i = 0; i < returnCount; i++) {
-            referredUsers[i] = referrals[offset + i];
-        }
-    }
-
-    // ==================== View Functions ====================
-
-    /**
-     * @notice Get subscription plan details
-     * @param tier Subscription tier to query
-     * @return plan Plan details including prices and features
-     */
-    function getPlan(
-        DataTypes.SubscriptionTier tier
-    )
-        external
-        view
-        whenInitialized
-        validTier(tier)
-        returns (DataTypes.SubscriptionPlan memory plan)
-    {
-        return plans[tier];
-    }
-
-    /**
-     * @notice Get all available subscription plans
-     * @return allPlans Array of all subscription plans
-     */
-    function getAllPlans()
-        external
-        view
-        whenInitialized
-        returns (DataTypes.SubscriptionPlan[] memory allPlans)
-    {
-        allPlans = new DataTypes.SubscriptionPlan[](brandConfig.maxTier + 1);
-        for (uint8 i = 0; i <= brandConfig.maxTier; i++) {
-            allPlans[i] = plans[DataTypes.SubscriptionTier(i)];
-        }
-        return allPlans;
-    }
-
-    /**
-     * @notice Get user's subscription information
-     * @param user User address to query
-     * @return subscription User's subscription details
-     */
-    function getUserSubscription(
-        address user
-    )
-        external
-        view
-        whenInitialized
-        returns (DataTypes.UserSubscription memory subscription)
-    {
-        return userSubscriptions[user];
-    }
-
-    /**
-     * @notice Check if user has active subscription
-     * @param user User address to check
-     * @return True if subscription is active, false otherwise
-     */
-    function hasActiveSubscription(
-        address user
-    ) external view whenInitialized returns (bool) {
-        return userSubscriptions[user].endTime > block.timestamp;
-    }
-
-    /**
-     * @notice Get referral account information
-     * @param referrer Referrer address to query
-     * @return account Referral account details
-     */
-    function getReferralAccount(
-        address referrer
-    ) external view whenInitialized returns (DataTypes.ReferralAccount memory) {
-        return referralAccounts[referrer];
-    }
-
-    /**
-     * @notice Get global referral statistics
-     * @return totalSubscriptions Total number of referral subscriptions
-     * @return totalRewards Total rewards distributed
-     * @return pendingRewards Total pending referral rewards not yet claimed
-     */
-    function getReferralStats()
-        external
-        view
-        whenInitialized
-        returns (
-            uint256 totalSubscriptions,
-            uint256 totalRewards,
-            uint256 pendingRewards
-        )
-    {
-        return (
-            totalReferralSubscriptions,
-            totalReferralRewardsDistributed,
-            totalPendingReferralRewards
-        );
-    }
-
-    /**
-     * @notice Get user's total rewards earned
-     * @param user User address to query
-     * @return totalRewards Total rewards earned by the user
-     */
-    function getUserTotalRewards(
-        address user
-    ) external view whenInitialized returns (uint256) {
-        return userSubscriptions[user].totalRewardsEarned;
-    }
-
-    /**
-     * @notice Get comprehensive project statistics (all total-related stats)
-     * @dev Returns all 10 total statistics for complete overview
-     * @return grossRevenue Total gross revenue (before any fees)
-     * @return netRevenue Total net revenue (after all fees and cashback)
-     * @return subscribers Total number of subscribers
-     * @return referrers Total number of unique referrers who earned rewards
-     * @return validReferralRevenue Revenue from subscriptions with valid referrers
-     * @return referralRewardsDistributed Total referral rewards distributed
-     * @return pendingReferralRewards Total unclaimed referral rewards
-     * @return referralSubscriptions Total referral subscriptions
-     * @return platformFees Total platform fees paid to factory
-     * @return cashbackPaid Total cashback paid to subscribers
-     */
-    function getProjectStats()
-        external
-        view
-        whenInitialized
-        returns (
-            uint256 grossRevenue,
-            uint256 netRevenue,
-            uint256 subscribers,
-            uint256 referrers,
-            uint256 validReferralRevenue,
-            uint256 referralRewardsDistributed,
-            uint256 pendingReferralRewards,
-            uint256 referralSubscriptions,
-            uint256 platformFees,
-            uint256 cashbackPaid
-        )
-    {
-        return (
-            totalGrossRevenue,
-            totalNetRevenue,
-            totalSubscribers,
-            totalReferrers,
-            totalValidReferralRevenue,
-            totalReferralRewardsDistributed,
-            totalPendingReferralRewards,
-            totalReferralSubscriptions,
-            totalPlatformFeesPaid,
-            totalCashbackPaid
-        );
-    }
-
-    /**
-     * @notice Get withdrawable balance for project owner
-     * @return withdrawableAmount Amount that can be withdrawn (excluding pending referral rewards)
-     * @return totalBalance Total contract balance
-     * @return reservedForReferrals Amount reserved for pending referral rewards
-     */
-    function getWithdrawableBalance()
-        external
-        view
-        whenInitialized
-        returns (
-            uint256 withdrawableAmount,
-            uint256 totalBalance,
-            uint256 reservedForReferrals
-        )
-    {
-        totalBalance = address(this).balance;
-        reservedForReferrals = totalPendingReferralRewards;
-        withdrawableAmount = totalBalance > reservedForReferrals
-            ? totalBalance - reservedForReferrals
-            : 0;
-    }
-
-    /**
-     * @notice Get all operation history with pagination
-     * @param offset Starting index for pagination
-     * @param limit Maximum number of records to return (capped at 100)
-     * @return records Array of operation records
-     * @return total Total number of operations
-     */
-    function getOperationHistoryPaginated(
-        uint256 offset,
-        uint256 limit
-    )
-        external
-        view
-        whenInitialized
-        returns (DataTypes.OperationRecord[] memory records, uint256 total)
-    {
-        total = operationHistory.length;
-
-        // Early return if offset is out of bounds
-        if (offset >= total) {
-            return (new DataTypes.OperationRecord[](0), total);
-        }
-
-        // Cap limit to prevent excessive gas usage
-        if (limit > 100) {
-            limit = 100;
-        }
-
-        // Calculate actual items to return
-        uint256 remaining = total - offset;
-        uint256 returnCount = remaining < limit ? remaining : limit;
-
-        // Create return array
-        records = new DataTypes.OperationRecord[](returnCount);
-
-        // Populate array
-        for (uint256 i = 0; i < returnCount; i++) {
-            records[i] = operationHistory[offset + i];
-        }
-    }
-
-    /**
-     * @notice Get operation history for a specific user with pagination
-     * @param user User address to query
-     * @param offset Starting index for pagination
-     * @param limit Maximum number of records to return (capped at 100)
-     * @return records Array of operation records for the user
-     * @return total Total number of operations for this user
-     */
-    function getUserOperationHistoryPaginated(
-        address user,
-        uint256 offset,
-        uint256 limit
-    )
-        external
-        view
-        whenInitialized
-        returns (DataTypes.OperationRecord[] memory records, uint256 total)
-    {
-        uint256[] storage userOps = userOperationIndices[user];
-        total = userOps.length;
-
-        // Early return if offset is out of bounds
-        if (offset >= total) {
-            return (new DataTypes.OperationRecord[](0), total);
-        }
-
-        // Cap limit to prevent excessive gas usage
-        if (limit > 100) {
-            limit = 100;
-        }
-
-        // Calculate actual items to return
-        uint256 remaining = total - offset;
-        uint256 returnCount = remaining < limit ? remaining : limit;
-
-        // Create return array
-        records = new DataTypes.OperationRecord[](returnCount);
-
-        // Populate array with user's operations
-        for (uint256 i = 0; i < returnCount; i++) {
-            uint256 operationIndex = userOps[offset + i];
-            records[i] = operationHistory[operationIndex];
-        }
-    }
+    // View functions removed - delegated to reader implementation via fallback
 
     // ==================== Internal Functions ====================
 
@@ -1042,6 +667,30 @@ contract Project is IProject, ProjectStorage, ReentrancyGuard {
         );
     }
 
+    // ==================== Proxy for View Functions ====================
+    
+    /**
+     * @dev Fallback function to delegate view calls to reader implementation
+     * @notice Uses delegatecall to allow reader to access this contract's storage
+     * Security: Only the owner can set readerImplementation, and it should only contain view functions
+     * The reader contract MUST NOT contain any state-modifying functions
+     */
+    fallback() external payable {
+        address impl = readerImplementation;
+        if (impl == address(0)) revert();
+        
+        assembly {
+            calldatacopy(0, 0, calldatasize())
+            // delegatecall allows the reader to access this contract's storage
+            // This is necessary for view functions to read the state
+            let result := delegatecall(gas(), impl, 0, calldatasize(), 0, 0)
+            returndatacopy(0, 0, returndatasize())
+            switch result
+            case 0 { revert(0, returndatasize()) }
+            default { return(0, returndatasize()) }
+        }
+    }
+    
     // Disabled functions
     function requestOwnershipHandover() public payable override {
         revert("This function is disabled");

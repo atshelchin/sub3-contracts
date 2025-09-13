@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import {Test} from "forge-std/Test.sol";
 import {Factory} from "../src/Factory.sol";
 import {Project} from "../src/Project.sol";
+import {ProjectReaderImpl} from "../src/ProjectReaderImpl.sol";
 import {DataTypes} from "../src/DataTypes.sol";
 import {IProject} from "../src/interfaces/IProject.sol";
 
@@ -11,6 +12,8 @@ contract ProjectTest is Test {
     Factory factory;
     Project projectImpl;
     Project project;
+    ProjectReaderImpl reader;
+    IProject projectView; // Interface wrapper for view functions
 
     address platformOwner = address(0x1);
     address projectOwner = address(0x2);
@@ -118,10 +121,19 @@ contract ProjectTest is Test {
             defaultPrices
         );
         project = Project(payable(projectAddr));
+        
+        // Deploy and set reader implementation
+        reader = new ProjectReaderImpl();
+        
+        // Start as project owner to set reader and configure plans
+        vm.startPrank(projectOwner);
+        project.setReaderImplementation(address(reader));
+        
+        // Create interface wrapper for view functions
+        projectView = IProject(address(project));
 
         // Plans are already configured during initialization with prices
         // We can still update features if needed
-        vm.startPrank(projectOwner);
         string[] memory proFeatures = new string[](2);
         proFeatures[0] = "Basic Feature";
         proFeatures[1] = "Pro Feature";
@@ -156,12 +168,11 @@ contract ProjectTest is Test {
 
     // ==================== Initialization Tests ====================
 
-    function test_Initialization() public view {
+    function test_Initialization() public {
         // Check brand config
-        (string memory name, string memory symbol, , , , , ) = project
-            .brandConfig();
-        assertEq(name, "TestProject");
-        assertEq(symbol, "TP");
+        DataTypes.BrandConfig memory config = projectView.getBrandConfig();
+        assertEq(config.name, "TestProject");
+        assertEq(config.symbol, "TP");
 
         // Check factory
         assertEq(project.factory(), address(factory));
@@ -184,20 +195,22 @@ contract ProjectTest is Test {
         );
     }
 
-    function test_DefaultPlans() public view {
+    function test_DefaultPlans() public {
         // Check PRO plan
-        DataTypes.SubscriptionPlan memory proPlan = project.getPlan(
+        DataTypes.SubscriptionPlan memory proPlan = IProject(address(project)).getPlan(
             DataTypes.SubscriptionTier.PRO
         );
-        assertEq(project.getTierNames()[2], "Pro");
+        string[4] memory tierNames = IProject(address(project)).getTierNames();
+        assertEq(tierNames[2], "Pro");
         assertEq(proPlan.prices[2], PRO_MONTHLY); // Monthly price
         assertEq(proPlan.prices[3], PRO_YEARLY); // Yearly price
 
         // Check MAX plan
-        DataTypes.SubscriptionPlan memory maxPlan = project.getPlan(
+        DataTypes.SubscriptionPlan memory maxPlan = IProject(address(project)).getPlan(
             DataTypes.SubscriptionTier.MAX
         );
-        assertEq(project.getTierNames()[3], "Max");
+        string[4] memory tierNames2 = IProject(address(project)).getTierNames();
+        assertEq(tierNames2[3], "Max");
         assertEq(maxPlan.prices[2], MAX_MONTHLY); // Monthly price
         assertEq(maxPlan.prices[3], MAX_YEARLY); // Yearly price
     }
@@ -222,7 +235,7 @@ contract ProjectTest is Test {
         );
 
         // Check subscription
-        DataTypes.UserSubscription memory sub = project.getUserSubscription(
+        DataTypes.UserSubscription memory sub = projectView.getUserSubscription(
             subscriber1
         );
         assertEq(sub.user, subscriber1);
@@ -232,7 +245,7 @@ contract ProjectTest is Test {
             uint256(DataTypes.SubscriptionPeriod.MONTHLY)
         );
         assertEq(sub.paidAmount, PRO_MONTHLY);
-        assertTrue(project.hasActiveSubscription(subscriber1));
+        assertTrue(projectView.hasActiveSubscription(subscriber1));
 
         // Check statistics
         (
@@ -246,7 +259,7 @@ contract ProjectTest is Test {
             ,
             uint256 platformFees,
 
-        ) = project.getProjectStats();
+        ) = projectView.getProjectStats();
         assertEq(gross, PRO_MONTHLY);
         uint256 expectedPlatformFee = (PRO_MONTHLY * 500) / 10000; // 5%
         assertEq(platformFees, expectedPlatformFee);
@@ -261,7 +274,7 @@ contract ProjectTest is Test {
             address(0)
         );
 
-        DataTypes.UserSubscription memory sub = project.getUserSubscription(
+        DataTypes.UserSubscription memory sub = projectView.getUserSubscription(
             subscriber1
         );
         assertEq(uint256(sub.tier), uint256(DataTypes.SubscriptionTier.MAX));
@@ -298,13 +311,13 @@ contract ProjectTest is Test {
         );
 
         // Check referrer recorded
-        DataTypes.UserSubscription memory sub = project.getUserSubscription(
+        DataTypes.UserSubscription memory sub = projectView.getUserSubscription(
             subscriber1
         );
         assertEq(sub.referrer, referrer);
 
         // Check referral account
-        DataTypes.ReferralAccount memory refAccount = project
+        DataTypes.ReferralAccount memory refAccount = projectView
             .getReferralAccount(referrer);
         assertEq(refAccount.pendingRewards, PRO_MONTHLY / 10);
         assertEq(refAccount.totalRewards, PRO_MONTHLY / 10);
@@ -325,7 +338,7 @@ contract ProjectTest is Test {
             ,
             uint256 platformFees,
             uint256 cashback
-        ) = project.getProjectStats();
+        ) = projectView.getProjectStats();
         assertEq(gross, PRO_MONTHLY * 2); // Both subscriptions
         assertEq(referrers, 1);
         assertEq(validRevenue, PRO_MONTHLY); // Only subscriber1's payment had valid referrer
@@ -343,13 +356,13 @@ contract ProjectTest is Test {
         );
 
         // Check no referrer recorded
-        DataTypes.UserSubscription memory sub = project.getUserSubscription(
+        DataTypes.UserSubscription memory sub = projectView.getUserSubscription(
             subscriber1
         );
         assertEq(sub.referrer, address(0));
 
         // Check no referral rewards
-        DataTypes.ReferralAccount memory refAccount = project
+        DataTypes.ReferralAccount memory refAccount = projectView
             .getReferralAccount(nonSubscriber);
         assertEq(refAccount.pendingRewards, 0);
     }
@@ -375,13 +388,13 @@ contract ProjectTest is Test {
         );
 
         // Check no referrer recorded
-        DataTypes.UserSubscription memory sub = project.getUserSubscription(
+        DataTypes.UserSubscription memory sub = projectView.getUserSubscription(
             subscriber1
         );
         assertEq(sub.referrer, address(0));
 
         // Check no new referral rewards
-        DataTypes.ReferralAccount memory refAccount = project
+        DataTypes.ReferralAccount memory refAccount = projectView
             .getReferralAccount(referrer);
         assertEq(refAccount.pendingRewards, 0);
     }
@@ -465,7 +478,7 @@ contract ProjectTest is Test {
         );
 
         // Check renewed subscription
-        DataTypes.UserSubscription memory sub = project.getUserSubscription(
+        DataTypes.UserSubscription memory sub = projectView.getUserSubscription(
             subscriber1
         );
         assertEq(
@@ -473,7 +486,7 @@ contract ProjectTest is Test {
             uint256(DataTypes.SubscriptionPeriod.YEARLY)
         );
         assertEq(sub.paidAmount, PRO_YEARLY);
-        assertTrue(project.hasActiveSubscription(subscriber1));
+        assertTrue(projectView.hasActiveSubscription(subscriber1));
     }
 
     function test_CannotRenewWhileActive() public {
@@ -538,7 +551,7 @@ contract ProjectTest is Test {
         );
 
         // Check upgraded subscription
-        DataTypes.UserSubscription memory sub = project.getUserSubscription(
+        DataTypes.UserSubscription memory sub = projectView.getUserSubscription(
             subscriber1
         );
         assertEq(uint256(sub.tier), uint256(DataTypes.SubscriptionTier.MAX));
@@ -627,7 +640,7 @@ contract ProjectTest is Test {
         );
 
         // Check downgraded subscription
-        DataTypes.UserSubscription memory sub = project.getUserSubscription(
+        DataTypes.UserSubscription memory sub = projectView.getUserSubscription(
             subscriber1
         );
         assertEq(uint256(sub.tier), uint256(DataTypes.SubscriptionTier.PRO));
@@ -635,7 +648,7 @@ contract ProjectTest is Test {
             uint256(sub.period),
             uint256(DataTypes.SubscriptionPeriod.YEARLY)
         );
-        assertTrue(project.hasActiveSubscription(subscriber1));
+        assertTrue(projectView.hasActiveSubscription(subscriber1));
     }
 
     function test_CannotDowngradeWhileActive() public {
@@ -705,7 +718,7 @@ contract ProjectTest is Test {
         // Check rewards claimed
         assertEq(referrer.balance - balanceBefore, MAX_MONTHLY / 10);
 
-        DataTypes.ReferralAccount memory refAccount = project
+        DataTypes.ReferralAccount memory refAccount = projectView
             .getReferralAccount(referrer);
         assertEq(refAccount.pendingRewards, 0);
         assertEq(refAccount.totalRewards, MAX_MONTHLY / 10);
@@ -781,7 +794,7 @@ contract ProjectTest is Test {
             features
         );
 
-        DataTypes.SubscriptionPlan memory plan = project.getPlan(
+        DataTypes.SubscriptionPlan memory plan = projectView.getPlan(
             DataTypes.SubscriptionTier.PRO
         );
         assertEq(plan.prices[2], 0.02 ether); // Monthly price
@@ -815,7 +828,7 @@ contract ProjectTest is Test {
         );
         
         // Verify the plan was updated with zero prices
-        DataTypes.SubscriptionPlan memory plan = project.getPlan(DataTypes.SubscriptionTier.PRO);
+        DataTypes.SubscriptionPlan memory plan = projectView.getPlan(DataTypes.SubscriptionTier.PRO);
         assertEq(plan.prices[0], 0);
         assertEq(plan.prices[1], 0);
         assertEq(plan.prices[2], 0);
@@ -940,7 +953,7 @@ contract ProjectTest is Test {
         );
 
         // Check that pending rewards exist (10% of 0.005 ether = 0.0005 ether)
-        (, uint256 totalBalance, uint256 reservedForReferrals) = project
+        (, uint256 totalBalance, uint256 reservedForReferrals) = projectView
             .getWithdrawableBalance();
         assertEq(
             reservedForReferrals,
@@ -969,10 +982,10 @@ contract ProjectTest is Test {
 
     // ==================== View Functions Tests ====================
 
-    function test_GetAllPlans() public view {
-        DataTypes.SubscriptionPlan[] memory plans = project.getAllPlans();
+    function test_GetAllPlans() public {
+        DataTypes.SubscriptionPlan[] memory plans = projectView.getAllPlans();
         assertEq(plans.length, 4); // All 4 tiers are enabled
-        string[4] memory tierNames = project.getTierNames();
+        string[4] memory tierNames = projectView.getTierNames();
         assertEq(tierNames[0], "Starter");
         assertEq(tierNames[1], "Standard");
         assertEq(tierNames[2], "Pro");
@@ -1002,7 +1015,7 @@ contract ProjectTest is Test {
             referrer
         );
 
-        (uint256 totalSubs, uint256 totalRewards, ) = project
+        (uint256 totalSubs, uint256 totalRewards, ) = projectView
             .getReferralStats();
         assertEq(totalSubs, 2);
         assertEq(totalRewards, (PRO_MONTHLY + MAX_MONTHLY) / 10);
@@ -1024,7 +1037,7 @@ contract ProjectTest is Test {
             referrer
         );
 
-        uint256 rewards = project.getUserTotalRewards(subscriber1);
+        uint256 rewards = projectView.getUserTotalRewards(subscriber1);
         assertEq(rewards, MAX_MONTHLY / 10);
     }
 
@@ -1055,7 +1068,7 @@ contract ProjectTest is Test {
             uint256 refSubscriptions,
             uint256 platformFees,
             uint256 cashbackPaid
-        ) = project.getProjectStats();
+        ) = projectView.getProjectStats();
 
         uint256 totalRevenue = PRO_MONTHLY + MAX_MONTHLY;
         assertEq(grossRevenue, totalRevenue);
@@ -1175,7 +1188,7 @@ contract ProjectTest is Test {
         }
 
         // Check referral account
-        DataTypes.ReferralAccount memory refAccount = project
+        DataTypes.ReferralAccount memory refAccount = projectView
             .getReferralAccount(referrer);
         assertEq(refAccount.referralCount, 5);
         assertEq(refAccount.pendingRewards, (PRO_MONTHLY * 5) / 10);
@@ -1207,7 +1220,7 @@ contract ProjectTest is Test {
         );
 
         // Check additional rewards
-        DataTypes.ReferralAccount memory refAccount = project
+        DataTypes.ReferralAccount memory refAccount = projectView
             .getReferralAccount(referrer);
         assertTrue(refAccount.pendingRewards > PRO_MONTHLY / 10);
     }
@@ -1233,7 +1246,7 @@ contract ProjectTest is Test {
             address[] memory page1Addresses,
             DataTypes.UserSubscription[] memory page1Subs,
             uint256 total1
-        ) = project.getSubscribersPaginated(0, 10);
+        ) = projectView.getSubscribersPaginated(0, 10);
 
         assertEq(page1Addresses.length, 10);
         assertEq(page1Subs.length, 10);
@@ -1244,7 +1257,7 @@ contract ProjectTest is Test {
             address[] memory page2Addresses,
             DataTypes.UserSubscription[] memory page2Subs,
             uint256 total2
-        ) = project.getSubscribersPaginated(10, 10);
+        ) = projectView.getSubscribersPaginated(10, 10);
 
         assertEq(page2Addresses.length, 5); // Only 5 remaining
         assertEq(page2Subs.length, 5);
@@ -1258,7 +1271,7 @@ contract ProjectTest is Test {
         }
 
         // Test limit enforcement
-        (address[] memory limitedAddresses, , ) = project
+        (address[] memory limitedAddresses, , ) = projectView
             .getSubscribersPaginated(0, 150); // Over limit
 
         assertEq(limitedAddresses.length, 15); // Should return actual count, not exceed total
@@ -1287,21 +1300,21 @@ contract ProjectTest is Test {
         }
 
         // Test first page of referrals
-        (address[] memory page1, uint256 total1) = project
+        (address[] memory page1, uint256 total1) = projectView
             .getReferralsPaginated(referrer, 0, 10);
 
         assertEq(page1.length, 10);
         assertEq(total1, 12);
 
         // Test second page
-        (address[] memory page2, uint256 total2) = project
+        (address[] memory page2, uint256 total2) = projectView
             .getReferralsPaginated(referrer, 10, 10);
 
         assertEq(page2.length, 2); // Only 2 remaining
         assertEq(total2, 12);
 
         // Test non-referrer returns empty
-        (address[] memory emptyList, uint256 emptyTotal) = project
+        (address[] memory emptyList, uint256 emptyTotal) = projectView
             .getReferralsPaginated(subscriber1, 0, 10);
 
         assertEq(emptyList.length, 0);

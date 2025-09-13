@@ -10,9 +10,9 @@ contract ProjectStorage is Ownable {
     address public factory;
     bool public initialized;
     
-    // State Variables
-    mapping(address => DataTypes.UserSubscription) internal userSubscriptions;
-    mapping(DataTypes.SubscriptionTier => DataTypes.SubscriptionPlan) internal plans;
+    // State Variables (public for reader access)
+    mapping(address => DataTypes.UserSubscription) public userSubscriptions;
+    mapping(DataTypes.SubscriptionTier => DataTypes.SubscriptionPlan) public plans;
 
     // ========== Referral Rewards Storage ==========
     mapping(address => DataTypes.ReferralAccount) public referralAccounts; // Referral account data
