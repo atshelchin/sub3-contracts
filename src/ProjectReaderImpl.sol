@@ -11,11 +11,7 @@ import {IProjectRead} from "./interfaces/IProjectRead.sol";
  * @dev This contract is called via delegatecall from Project
  */
 contract ProjectReaderImpl is IProjectRead, ProjectStorage {
-    // Must match ProjectV2 storage layout
-    address public readerImplementation;
-    
     // ==================== View Functions ====================
-    
     function getBrandConfig() external view returns (DataTypes.BrandConfig memory) {
         return brandConfig;
     }

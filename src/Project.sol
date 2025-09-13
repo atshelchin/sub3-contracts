@@ -8,8 +8,6 @@ import {IFactory} from "./interfaces/IFactory.sol";
 import {IProjectWrite} from "./interfaces/IProjectWrite.sol";
 
 contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
-    // Reader implementation for view functions
-    address public readerImplementation;
     // Events and Errors are defined in IProject interface
 
     // ==================== Modifiers ====================
@@ -467,16 +465,6 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
         emit ReferralRewardsClaimed(msg.sender, rewardAmount);
     }
 
-    // ==================== Reader Implementation Setup ====================
-    
-    /**
-     * @notice Set the reader implementation contract
-     * @param _readerImplementation Address of the reader contract
-     */
-    function setReaderImplementation(address _readerImplementation) external onlyOwner {
-        readerImplementation = _readerImplementation;
-    }
-
     // View functions removed - delegated to reader implementation via fallback
 
     // ==================== Internal Functions ====================
@@ -671,12 +659,12 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
     
     /**
      * @dev Fallback function to delegate view calls to reader implementation
-     * @notice Uses delegatecall to allow reader to access this contract's storage
-     * Security: Only the owner can set readerImplementation, and it should only contain view functions
-     * The reader contract MUST NOT contain any state-modifying functions
+     * @notice Dynamically reads reader implementation from Factory
+     * Security: Only Factory owner can update the reader implementation
      */
     fallback() external payable {
-        address impl = readerImplementation;
+        // Dynamically get reader implementation from Factory
+        address impl = IFactory(factory).projectReaderImplementation();
         if (impl == address(0)) revert();
         
         assembly {

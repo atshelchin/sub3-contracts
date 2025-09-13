@@ -4,7 +4,6 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "../src/Factory.sol";
 import {Project} from "../src/Project.sol";
-import {ProjectReaderImpl} from "../src/ProjectReaderImpl.sol";
 import "../src/DataTypes.sol";
 
 /**
@@ -15,7 +14,6 @@ contract CoverageTest is Test {
     Factory public factory;
     Project public projectImpl;
     Project public project;
-    ProjectReaderImpl public reader;
     
     address public factoryOwner = address(0x1);
     address public projectOwner = address(0x2);
@@ -59,11 +57,6 @@ contract CoverageTest is Test {
             prices
         );
         project = Project(payable(projectAddr));
-        
-        // Deploy and set reader implementation
-        reader = new ProjectReaderImpl();
-        vm.prank(projectOwner);
-        project.setReaderImplementation(address(reader));
     }
     
     // ==================== Factory Untested Functions ====================

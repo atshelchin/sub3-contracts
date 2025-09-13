@@ -6,6 +6,7 @@ import {ReentrancyGuard} from "solady/utils/ReentrancyGuard.sol";
 import {LibClone} from "solady/utils/LibClone.sol";
 import {DataTypes} from "./DataTypes.sol";
 import {IFactory} from "./interfaces/IFactory.sol";
+import {ProjectReaderImpl} from "./ProjectReaderImpl.sol";
 
 interface IProject {
     function initialize(
@@ -26,6 +27,7 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
 
     // Core configuration
     address public projectImplementation;
+    address public projectReaderImplementation; // Shared reader implementation for all projects
     uint256 public projectCreationFee = 0.01 ether;
     uint256 public platformFeeBasisPoints = 500; // 500 basis points = 5%
 
@@ -66,6 +68,9 @@ contract Factory is IFactory, Ownable, ReentrancyGuard {
         if (projectImplementation_ == address(0)) revert ZeroAddress();
         _initializeOwner(owner_);
         projectImplementation = projectImplementation_;
+        
+        // Deploy the shared ProjectReaderImpl once for all projects
+        projectReaderImplementation = address(new ProjectReaderImpl());
     }
 
     // View functions

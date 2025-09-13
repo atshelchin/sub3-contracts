@@ -4,7 +4,6 @@ pragma solidity ^0.8.13;
 import {Test} from "forge-std/Test.sol";
 import {Factory} from "../src/Factory.sol";
 import {Project} from "../src/Project.sol";
-import {ProjectReaderImpl} from "../src/ProjectReaderImpl.sol";
 import {DataTypes} from "../src/DataTypes.sol";
 import {IProject} from "../src/interfaces/IProject.sol";
 
@@ -12,7 +11,6 @@ contract ProjectTest is Test {
     Factory factory;
     Project projectImpl;
     Project project;
-    ProjectReaderImpl reader;
     IProject projectView; // Interface wrapper for view functions
 
     address platformOwner = address(0x1);
@@ -122,15 +120,11 @@ contract ProjectTest is Test {
         );
         project = Project(payable(projectAddr));
         
-        // Deploy and set reader implementation
-        reader = new ProjectReaderImpl();
-        
-        // Start as project owner to set reader and configure plans
-        vm.startPrank(projectOwner);
-        project.setReaderImplementation(address(reader));
-        
         // Create interface wrapper for view functions
         projectView = IProject(address(project));
+        
+        // Start as project owner to configure plans
+        vm.startPrank(projectOwner);
 
         // Plans are already configured during initialization with prices
         // We can still update features if needed

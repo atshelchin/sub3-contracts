@@ -92,8 +92,6 @@ interface IProjectWrite {
     function updateBrandConfig(DataTypes.BrandConfig memory newConfig) external;
 
     function withdraw(address to) external;
-    
-    function setReaderImplementation(address _readerImplementation) external;
 
     // ==================== Subscription Functions ====================
     function subscribe(

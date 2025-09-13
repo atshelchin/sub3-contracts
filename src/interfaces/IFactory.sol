@@ -35,6 +35,8 @@ interface IFactory {
 
     // View Functions
     function projectImplementation() external view returns (address);
+    
+    function projectReaderImplementation() external view returns (address);
 
     function projectCreationFee() external view returns (uint256);
 
