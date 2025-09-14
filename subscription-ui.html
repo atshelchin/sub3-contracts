@@ -6217,7 +6217,7 @@
                             ]);
 
                             // Format revenue with proper decimals
-                            const revenue = parseFloat(web3.utils.fromWei(stats.netRevenue || '0', 'ether')).toFixed(4);
+                            const revenue = parseFloat(web3.utils.fromWei(stats.netRevenue || '0', 'ether')).toFixed(6);
                             const currency = getNetworkCurrency();
 
                             const row = document.createElement('tr');
@@ -6441,13 +6441,13 @@
                             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
                                 <div style="text-align: center;">
                                     <div style="font-size: 24px; font-weight: bold; color: #10b981;">
-                                        ${parseFloat(web3.utils.fromWei(stats.grossRevenue || '0', 'ether')).toFixed(4)}
+                                        ${parseFloat(web3.utils.fromWei(stats.grossRevenue || '0', 'ether')).toFixed(6)}
                                     </div>
                                     <div style="font-size: 12px; color: #666;">${currentLang === 'zh' ? '总收入' : 'Gross Revenue'} (${currency})</div>
                                 </div>
                                 <div style="text-align: center;">
                                     <div style="font-size: 24px; font-weight: bold; color: #3b82f6;">
-                                        ${parseFloat(web3.utils.fromWei(stats.netRevenue || '0', 'ether')).toFixed(4)}
+                                        ${parseFloat(web3.utils.fromWei(stats.netRevenue || '0', 'ether')).toFixed(6)}
                                     </div>
                                     <div style="font-size: 12px; color: #666;">${currentLang === 'zh' ? '净收入' : 'Net Revenue'} (${currency})</div>
                                 </div>
@@ -6459,7 +6459,7 @@
                                 </div>
                                 <div style="text-align: center;">
                                     <div style="font-size: 24px; font-weight: bold; color: #f59e0b;">
-                                        ${parseFloat(web3.utils.fromWei(withdrawableBalance.withdrawableAmount || '0', 'ether')).toFixed(4)}
+                                        ${parseFloat(web3.utils.fromWei(withdrawableBalance.withdrawableAmount || '0', 'ether')).toFixed(6)}
                                     </div>
                                     <div style="font-size: 12px; color: #666;">${currentLang === 'zh' ? '可提取' : 'Withdrawable'} (${currency})</div>
                                 </div>
@@ -6473,13 +6473,13 @@
                                 </div>
                                 <div style="text-align: center;">
                                     <div style="font-size: 18px; font-weight: bold; color: #666;">
-                                        ${parseFloat(web3.utils.fromWei(stats.platformFees || '0', 'ether')).toFixed(4)}
+                                        ${parseFloat(web3.utils.fromWei(stats.platformFees || '0', 'ether')).toFixed(6)}
                                     </div>
                                     <div style="font-size: 12px; color: #666;">${currentLang === 'zh' ? '平台费用' : 'Platform Fees'} (${currency})</div>
                                 </div>
                                 <div style="text-align: center;">
                                     <div style="font-size: 18px; font-weight: bold; color: #666;">
-                                        ${parseFloat(web3.utils.fromWei(stats.referralRewardsDistributed || '0', 'ether')).toFixed(4)}
+                                        ${parseFloat(web3.utils.fromWei(stats.referralRewardsDistributed || '0', 'ether')).toFixed(6)}
                                     </div>
                                     <div style="font-size: 12px; color: #666;">${currentLang === 'zh' ? '已发推广奖励' : 'Referral Rewards'} (${currency})</div>
                                 </div>
@@ -6528,7 +6528,7 @@
                                 modalContent += `
                                     <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; border-bottom: 1px solid #f3f4f6;">
                                         <span style="color: #64748b;">${periodNames[idx]}:</span>
-                                        <span style="font-weight: 600; color: #0f172a;">${parseFloat(priceInEth).toFixed(4)} ${currency}</span>
+                                        <span style="font-weight: 600; color: #0f172a;">${parseFloat(priceInEth).toFixed(6)} ${currency}</span>
                                     </div>
                                 `;
                             }
@@ -6940,9 +6940,9 @@
                 // Update UI with real data
                 document.getElementById('totalReferrals').textContent = referralAccount.referralCount || '0';
                 document.getElementById('totalReferralRewards').textContent =
-                    `${referralAccount.totalRewards ? parseFloat(web3Read.utils.fromWei(referralAccount.totalRewards.toString(), 'ether')).toFixed(4) : '0'} ETH`;
+                    `${referralAccount.totalRewards ? parseFloat(web3Read.utils.fromWei(referralAccount.totalRewards.toString(), 'ether')).toFixed(6) : '0'} ETH`;
                 document.getElementById('pendingReferralRewards').textContent =
-                    `${referralAccount.pendingRewards ? parseFloat(web3Read.utils.fromWei(referralAccount.pendingRewards.toString(), 'ether')).toFixed(4) : '0'} ETH`;
+                    `${referralAccount.pendingRewards ? parseFloat(web3Read.utils.fromWei(referralAccount.pendingRewards.toString(), 'ether')).toFixed(6) : '0'} ETH`;
 
                 // Enable/disable claim button based on pending rewards
                 const claimBtn = document.getElementById('claimRewardsBtn');
@@ -7536,7 +7536,7 @@
 
                                 <div style="text-align: center; padding: 20px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #e5e7eb;">
                                     <div style="font-size: 32px; font-weight: bold; color: #10b981; margin-bottom: 8px;">
-                                        ${stats.totalRevenue ? parseFloat(web3Read.utils.fromWei(stats.totalRevenue.toString(), 'ether')).toFixed(4) : '0'}
+                                        ${stats.totalRevenue ? parseFloat(web3Read.utils.fromWei(stats.totalRevenue.toString(), 'ether')).toFixed(6) : '0'}
                                     </div>
                                     <div style="font-size: 13px; color: #6b7280; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;">
                                         ${currentLang === 'zh' ? '总收入 (ETH)' : 'Revenue (ETH)'}
@@ -7554,7 +7554,7 @@
 
                                 <div style="text-align: center; padding: 20px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #e5e7eb;">
                                     <div style="font-size: 32px; font-weight: bold; color: #8b5cf6; margin-bottom: 8px;">
-                                        ${brandConfig.maxTier + 1}
+                                        ${parseInt(brandConfig.maxTier) + 1}
                                     </div>
                                     <div style="font-size: 13px; color: #6b7280; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;">
                                         ${currentLang === 'zh' ? '套餐等级' : 'Tiers'}
@@ -8000,7 +8000,7 @@
                         } else {
                             const priceEth = web3Read.utils.fromWei(priceWei.toString(), 'ether');
                             console.log(`✅ 价格 (ETH):`, priceEth);
-                            priceDisplay.innerHTML = `${parseFloat(priceEth).toFixed(4)} ETH`;
+                            priceDisplay.innerHTML = `${parseFloat(priceEth).toFixed(6)} ETH`;
 
                             // Calculate period duration for info
                             const periodDays = [1, 7, 30, 365][period];
@@ -8297,7 +8297,7 @@
                 const updateRenewPrice = async () => {
                     const period = document.getElementById('renewPeriod').value;
                     const price = web3Read.utils.fromWei(plan.prices[period].toString(), 'ether');
-                    document.getElementById('renewPriceDisplay').innerHTML = `${parseFloat(price).toFixed(4)} ETH`;
+                    document.getElementById('renewPriceDisplay').innerHTML = `${parseFloat(price).toFixed(6)} ETH`;
                     console.log('🔄 续费价格更新:', tierNames[userSub.tier], periodNames[period], price, 'ETH');
                 };
 
@@ -8361,6 +8361,7 @@
                 const brandConfig = await project.methods.getBrandConfig().call({ from: '0x0000000000000000000000000000000000000000' });
                 const allPlans = await project.methods.getAllPlans().call({ from: '0x0000000000000000000000000000000000000000' });
                 const tierNames = brandConfig.tierNames || ['Starter', 'Standard', 'Pro', 'Max'];
+                console.log('🔍 Debug - Upgrade Modal tierNames:', tierNames, 'userSub.tier:', userSub.tier);
                 const primaryColor = brandConfig.primaryColor || '#6366f1';
 
                 // Build upgrade tier options (only higher tiers)
@@ -8406,9 +8407,9 @@
                                 </select>
                             </div>
 
-                            <div id="upgradePrice" style="margin: 20px 0; padding: 20px; background: linear-gradient(135deg, #10b98115, #10b98105); border-radius: 12px; text-align: center;">
-                                <div style="color: #6b7280; font-size: 14px;">${currentLang === 'zh' ? '升级费用' : 'Upgrade Cost'}</div>
-                                <div id="upgradePriceDisplay" style="font-size: 28px; font-weight: bold; color: #10b981; margin-top: 8px;">-</div>
+                            <div id="upgradePrice" style="margin: 20px 0; padding: 20px; background: linear-gradient(135deg, #10b98115, #10b98105); border-radius: 12px;">
+                                <div style="color: #6b7280; font-size: 14px; text-align: center;">${currentLang === 'zh' ? '升级费用' : 'Upgrade Cost'}</div>
+                                <div id="upgradePriceDisplay" style="color: #10b981; margin-top: 8px; text-align: center;">-</div>
                             </div>
                         </div>
                         <div class="modal-footer" style="display: flex; gap: 10px; justify-content: flex-end;">
@@ -8427,6 +8428,68 @@
                 window.upgradeAllPlans = allPlans;
                 window.upgradeUserSub = userSub;
                 window.upgradeBrandConfig = brandConfig;
+                window.upgradePriceCache = {}; // Cache for calculated prices
+
+                // Shared function to calculate upgrade cost
+                window.calculateUpgradeCost = function(newTier, newPeriod, forceRecalculate = false) {
+                    const cacheKey = `${newTier}_${newPeriod}`;
+
+                    // Return cached result if available and not forcing recalculation
+                    if (!forceRecalculate && window.upgradePriceCache[cacheKey]) {
+                        return window.upgradePriceCache[cacheKey];
+                    }
+
+                    const newPlan = window.upgradeAllPlans[newTier];
+                    const oldPlan = window.upgradeAllPlans[userSub.tier];
+
+                    const currentTime = Math.floor(Date.now() / 1000);
+                    const remainingTime = userSub.endTime - currentTime;
+
+                    const periodDurations = [86400, 604800, 2629746, 31556952];
+                    const currentPeriodDuration = periodDurations[userSub.period];
+                    const newPeriodDuration = periodDurations[newPeriod];
+
+                    const newPlanPrice = BigInt(newPlan.prices[newPeriod]);
+                    const oldPlanPrice = BigInt(oldPlan.prices[userSub.period]);
+
+                    // Match Solidity contract logic exactly from Project.sol
+                    // uint256 remainingNewCost = (newTierPrice * remainingTime) / newPeriodDuration;
+                    const remainingNewCost = (newPlanPrice * BigInt(remainingTime)) / BigInt(newPeriodDuration);
+
+                    // uint256 fullPeriodCost = newTierPrice;
+                    const fullPeriodCost = newPlanPrice;
+
+                    // uint256 remainingOldCredit = (actualPaidAmount * remainingTime) / currentPeriodDuration;
+                    // Note: We use oldPlanPrice as approximation of actualPaidAmount since we don't have it in frontend
+                    const remainingOldCredit = (oldPlanPrice * BigInt(remainingTime)) / BigInt(currentPeriodDuration);
+
+                    // Calculate upgrade cost matching contract logic
+                    let upgradeCost = remainingNewCost + fullPeriodCost - remainingOldCredit;
+                    if (upgradeCost < 0n) upgradeCost = 0n;
+
+                    const safetyMargin = upgradeCost * 5n / 100n;
+                    const upgradeCostWithMargin = upgradeCost + safetyMargin;
+
+                    const result = {
+                        remainingTime,
+                        remainingNewCost,  // Prorated cost of new plan for remaining time
+                        fullPeriodCost,
+                        remainingOldCredit,  // Credit for unused portion of current subscription
+                        upgradeCost,
+                        safetyMargin,
+                        upgradeCostWithMargin,
+                        calculatedAt: currentTime,
+                        // Additional info for debugging
+                        newPeriodDuration,
+                        currentPeriodDuration,
+                        newPlanPrice,
+                        oldPlanPrice
+                    };
+
+                    // Cache the result
+                    window.upgradePriceCache[cacheKey] = result;
+                    return result;
+                };
 
                 // Update available periods when tier changes
                 const updateUpgradePeriods = () => {
@@ -8453,49 +8516,76 @@
                     const newTier = parseInt(document.getElementById('upgradeTier').value);
                     const newPeriod = parseInt(document.getElementById('upgradePeriod').value);
                     const newPlan = window.upgradeAllPlans[newTier];
-                    const oldPlan = window.upgradeAllPlans[userSub.tier];
 
                     if (newPlan && newPlan.prices[newPeriod]) {
-                        const currentTime = Math.floor(Date.now() / 1000);
-                        const remainingTime = userSub.endTime - currentTime;
+                        // Use shared calculation function with force recalculate since user changed selection
+                        const calc = window.calculateUpgradeCost(newTier, newPeriod, true);
 
-                        // Get period durations in seconds
-                        const periodDurations = [86400, 604800, 2629746, 31556952]; // day, week, month, year
-                        const currentPeriodDuration = periodDurations[userSub.period];
-                        const newPeriodDuration = periodDurations[newPeriod];
+                        const upgradeCostEth = web3Read.utils.fromWei(calc.upgradeCost.toString(), 'ether');
 
-                        // Calculate costs based on Project.sol logic
-                        const newPlanPrice = BigInt(newPlan.prices[newPeriod]);
-                        const oldPlanPrice = BigInt(oldPlan.prices[userSub.period]);
+                        // Display detailed price breakdown with better time display
+                        const remainingDaysExact = calc.remainingTime / 86400; // Exact days with decimals
+                        const remainingHours = calc.remainingTime / 3600; // Total hours with decimals
+                        const remainingNewCostEth = web3Read.utils.fromWei(calc.remainingNewCost.toString(), 'ether');
+                        const fullPeriodCostEth = web3Read.utils.fromWei(calc.fullPeriodCost.toString(), 'ether');
+                        const remainingOldCreditEth = web3Read.utils.fromWei(calc.remainingOldCredit.toString(), 'ether');
+                        const upgradeCostWithMarginEth = web3Read.utils.fromWei(calc.upgradeCostWithMargin.toString(), 'ether');
+                        const periodNames = currentLang === 'zh' ? ['日付', '周付', '月付', '年付'] : ['Daily', 'Weekly', 'Monthly', 'Yearly'];
 
-                        // 1. Pro-rated cost of new plan for remaining time
-                        const remainingNewCost = (newPlanPrice * BigInt(remainingTime)) / BigInt(currentPeriodDuration);
-
-                        // 2. Full period cost of new plan
-                        const fullPeriodCost = newPlanPrice;
-
-                        // 3. Credit for unused portion of current subscription
-                        const remainingOldCredit = (oldPlanPrice * BigInt(remainingTime)) / BigInt(currentPeriodDuration);
-
-                        // Total upgrade cost
-                        let upgradeCost = remainingNewCost + fullPeriodCost - remainingOldCredit;
-
-                        // Ensure non-negative
-                        if (upgradeCost < 0n) {
-                            upgradeCost = 0n;
+                        // Format remaining time display with better precision
+                        let remainingTimeDisplay;
+                        if (remainingDaysExact >= 2) {
+                            // 2 days or more, show integer days
+                            const days = Math.floor(remainingDaysExact);
+                            remainingTimeDisplay = currentLang === 'zh' ? `${days} 天` : `${days} days`;
+                        } else if (remainingDaysExact >= 1) {
+                            // Between 1 and 2 days, show with 1 decimal place
+                            const daysDisplay = remainingDaysExact.toFixed(1);
+                            remainingTimeDisplay = currentLang === 'zh' ? `${daysDisplay} 天` : `${daysDisplay} days`;
+                        } else {
+                            // Less than 1 day, show hours with 1 decimal place
+                            const hoursDisplay = remainingHours.toFixed(1);
+                            remainingTimeDisplay = currentLang === 'zh' ? `${hoursDisplay} 小时` : `${hoursDisplay} hours`;
                         }
 
-                        const upgradeCostEth = web3Read.utils.fromWei(upgradeCost.toString(), 'ether');
+                        document.getElementById('upgradePriceDisplay').innerHTML = `
+                            <div style="font-size: 24px; font-weight: bold; margin-bottom: 10px;">${parseFloat(upgradeCostWithMarginEth).toFixed(6)} ETH</div>
+                            <div style="font-size: 12px; color: #6b7280; line-height: 1.8; text-align: left;">
+                                <div style="border-top: 1px solid #e5e7eb; padding-top: 10px; margin-top: 10px;">
+                                    <div style="font-weight: 600; margin-bottom: 8px;">${currentLang === 'zh' ? '费用明细：' : 'Price Breakdown:'}</div>
+                                    <div style="margin-left: 10px;">
+                                        <div style="margin: 4px 0;">• ${currentLang === 'zh' ? `剩余 ${remainingTimeDisplay} 新套餐按比例费用` : `Pro-rated new plan for ${remainingTimeDisplay}`}: <strong>${parseFloat(remainingNewCostEth).toFixed(6)} ETH</strong></div>
+                                        <div style="margin: 4px 0;">• ${currentLang === 'zh' ? '新套餐完整周期费用' : 'Full period of new plan'} (${periodNames[newPeriod]}): <strong>${parseFloat(fullPeriodCostEth).toFixed(6)} ETH</strong></div>
+                                        <div style="margin: 4px 0; color: #059669;">• ${currentLang === 'zh' ? '减：已付费剩余时间抵扣' : 'Less: Credit for prepaid time'}: <strong>-${parseFloat(remainingOldCreditEth).toFixed(6)} ETH</strong></div>
+                                    </div>
+                                    <div style="border-top: 1px solid #e5e7eb; margin-top: 10px; padding-top: 10px;">
+                                        <div style="font-weight: 600;">
+                                            ${currentLang === 'zh' ? '小计' : 'Subtotal'}: ${parseFloat(upgradeCostEth).toFixed(6)} ETH
+                                        </div>
+                                        <div style="font-size: 11px; color: #9ca3af; margin-top: 4px;">
+                                            ${currentLang === 'zh' ? '包含 5% 安全边际确保交易成功' : 'Includes 5% safety margin for transaction success'}
+                                        </div>
+                                        <div style="font-weight: 600; color: #10b981; margin-top: 8px; font-size: 14px;">
+                                            ${currentLang === 'zh' ? '实际支付' : 'Actual Payment'}: ${parseFloat(upgradeCostWithMarginEth).toFixed(6)} ETH
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
 
-                        document.getElementById('upgradePriceDisplay').innerHTML = `${parseFloat(upgradeCostEth).toFixed(4)} ETH`;
-
-                        console.log('\n=== ⬆️ 升级价格计算 ===');
+                        console.log('\n=== ⬆️ 升级价格计算 (显示) - 匹配 Solidity 逻辑 ===');
                         console.log('当前套餐:', tierNames[userSub.tier], '- 新套餐:', tierNames[newTier]);
-                        console.log('剩余时间:', Math.floor(remainingTime / 86400), '天');
-                        console.log('1. 新套餐剩余时间按比例费用:', web3Read.utils.fromWei(remainingNewCost.toString(), 'ether'), 'ETH');
-                        console.log('2. 新套餐完整周期费用:', web3Read.utils.fromWei(fullPeriodCost.toString(), 'ether'), 'ETH');
-                        console.log('3. 当前套餐剩余时间退款:', web3Read.utils.fromWei(remainingOldCredit.toString(), 'ether'), 'ETH');
-                        console.log('总升级费用:', upgradeCostEth, 'ETH\n');
+                        console.log('剩余时间:', (calc.remainingTime / 86400).toFixed(2), '天 (', Math.floor(calc.remainingTime / 3600), '小时)');
+                        console.log('新套餐价格 (新周期):', web3Read.utils.fromWei(calc.newPlanPrice.toString(), 'ether'), 'ETH');
+                        console.log('当前套餐价格 (当前周期):', web3Read.utils.fromWei(calc.oldPlanPrice.toString(), 'ether'), 'ETH');
+                        console.log('新周期时长:', calc.newPeriodDuration, '秒 (', (calc.newPeriodDuration / 86400).toFixed(1), '天)');
+                        console.log('当前周期时长:', calc.currentPeriodDuration, '秒 (', (calc.currentPeriodDuration / 86400).toFixed(1), '天)');
+                        console.log('1. 剩余时间新套餐费用 = 新价格 * 剩余时间 / 新周期时长:', web3Read.utils.fromWei(calc.remainingNewCost.toString(), 'ether'), 'ETH');
+                        console.log('2. 新套餐完整周期费用 (', periodNames[newPeriod], '):', web3Read.utils.fromWei(calc.fullPeriodCost.toString(), 'ether'), 'ETH');
+                        console.log('3. 当前套餐退款 = 当前价格 * 剩余时间 / 当前周期时长:', web3Read.utils.fromWei(calc.remainingOldCredit.toString(), 'ether'), 'ETH');
+                        console.log('基础升级费用:', upgradeCostEth, 'ETH');
+                        console.log('安全边际 (5%):', web3Read.utils.fromWei(calc.safetyMargin.toString(), 'ether'), 'ETH');
+                        console.log('实际显示价格:', upgradeCostWithMarginEth, 'ETH\n');
                     }
                 };
 
@@ -8517,44 +8607,25 @@
                 const newTier = parseInt(document.getElementById('upgradeTier').value);
                 const newPeriod = parseInt(document.getElementById('upgradePeriod').value);
 
-                // Get user's current subscription for calculation
+                // Use shared calculation function for consistency
+                const calc = window.calculateUpgradeCost(newTier, newPeriod);
+
                 const selectedChainId = localStorage.getItem('selectedNetwork') || '8453';
                 const rpcUrl = getNetworkRpcUrl(selectedChainId);
                 const web3Read = new Web3(new Web3.providers.HttpProvider(rpcUrl));
-                const projectRead = new web3Read.eth.Contract(PROJECT_ABI, window.currentSubscriberProject);
 
-                // Re-fetch current subscription to ensure we have the latest state
-                const userSub = await projectRead.methods.getUserSubscription(accounts[0]).call({ from: '0x0000000000000000000000000000000000000000' });
-                const newPlan = await projectRead.methods.getPlan(newTier).call({ from: '0x0000000000000000000000000000000000000000' });
-                const oldPlan = await projectRead.methods.getPlan(userSub.tier).call({ from: '0x0000000000000000000000000000000000000000' });
-
-                // Calculate upgrade cost with proration
-                const currentTime = Math.floor(Date.now() / 1000);
-                const remainingTime = userSub.endTime - currentTime;
-                const periodDurations = [86400, 604800, 2629746, 31556952]; // day, week, month, year
-                const currentPeriodDuration = periodDurations[userSub.period];
-
-                const newPlanPrice = BigInt(newPlan.prices[newPeriod]);
-                const oldPlanPrice = BigInt(oldPlan.prices[userSub.period]);
-
-                // Calculate prorated costs
-                const remainingNewCost = (newPlanPrice * BigInt(remainingTime)) / BigInt(currentPeriodDuration);
-                const fullPeriodCost = newPlanPrice;
-                const remainingOldCredit = (oldPlanPrice * BigInt(remainingTime)) / BigInt(currentPeriodDuration);
-
-                let upgradeCost = remainingNewCost + fullPeriodCost - remainingOldCredit;
-                if (upgradeCost < 0n) upgradeCost = 0n;
-
-                console.log('\n=== ⬆️ 升级操作 ==>');
+                console.log('\n=== ⬆️ 升级操作 (执行) ===');
                 console.log('参数 - 新套餐:', newTier, '新周期:', newPeriod);
-                console.log('计算的升级费用:', upgradeCost, 'Wei (', web3Read.utils.fromWei(upgradeCost.toString(), 'ether'), 'ETH)');
-                console.log('注意：升级使用 upgrade(newTier, newPeriod) 方法\n');
+                console.log('基础升级费用:', calc.upgradeCost, 'Wei (', web3Read.utils.fromWei(calc.upgradeCost.toString(), 'ether'), 'ETH)');
+                console.log('安全边际 (5%):', calc.safetyMargin, 'Wei (', web3Read.utils.fromWei(calc.safetyMargin.toString(), 'ether'), 'ETH)');
+                console.log('实际支付金额:', calc.upgradeCostWithMargin, 'Wei (', web3Read.utils.fromWei(calc.upgradeCostWithMargin.toString(), 'ether'), 'ETH)');
+                console.log('注意：升级使用 upgrade(newTier, newPeriod) 方法，包含 5% 安全边际确保交易成功\n');
 
-                // Use wallet for transaction with calculated upgrade cost
+                // Use wallet for transaction with calculated upgrade cost plus safety margin
                 const project = new web3.eth.Contract(PROJECT_ABI, window.currentSubscriberProject);
                 await project.methods.upgrade(newTier, newPeriod).send({
                     from: accounts[0],
-                    value: upgradeCost.toString()
+                    value: calc.upgradeCostWithMargin.toString()
                 });
 
                 showToast(currentLang === 'zh' ? '升级成功！' : 'Upgrade successful!', 'success');
@@ -8688,7 +8759,7 @@
                     const plan = window.downgradeAllPlans[tier];
                     if (plan && plan.prices[period]) {
                         const price = web3Read.utils.fromWei(plan.prices[period].toString(), 'ether');
-                        document.getElementById('downgradePriceDisplay').innerHTML = `${parseFloat(price).toFixed(4)} ETH`;
+                        document.getElementById('downgradePriceDisplay').innerHTML = `${parseFloat(price).toFixed(6)} ETH`;
                         console.log('⬇️ 降级价格更新:', tierNames[tier], currentLang === 'zh' ? ['日付', '周付', '月付', '年付'][period] : ['Daily', 'Weekly', 'Monthly', 'Yearly'][period], price, 'ETH');
                     }
                 };
@@ -9094,6 +9165,293 @@
                     }
                 }
             }
+        });
+
+        // ABI Method Debugger Panel
+        function createABIDebugger() {
+            const debuggerHTML = `
+                <div id="abiDebuggerPanel" style="position: fixed; bottom: 20px; right: 20px; width: 400px; max-height: 600px; background: white; border: 2px solid #e5e7eb; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); display: none; z-index: 10000; overflow: hidden;">
+                    <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center;">
+                        <h3 style="margin: 0; font-size: 16px;">🔧 ${currentLang === 'zh' ? 'ABI 方法调试器' : 'ABI Method Debugger'}</h3>
+                        <button onclick="toggleABIDebugger()" style="background: transparent; border: none; color: white; font-size: 20px; cursor: pointer;">×</button>
+                    </div>
+                    <div style="padding: 15px; overflow-y: auto; max-height: 500px;">
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #374151;">
+                                ${currentLang === 'zh' ? '选择合约' : 'Select Contract'}
+                            </label>
+                            <select id="debugContractSelect" onchange="updateDebugMethods()" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px;">
+                                <option value="">-- ${currentLang === 'zh' ? '选择合约' : 'Select Contract'} --</option>
+                                <option value="factory">Factory Contract</option>
+                                <option value="project">Project Contract</option>
+                            </select>
+                        </div>
+
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #374151;">
+                                ${currentLang === 'zh' ? '选择方法' : 'Select Method'}
+                            </label>
+                            <select id="debugMethodSelect" onchange="updateMethodInputs()" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px;">
+                                <option value="">-- ${currentLang === 'zh' ? '先选择合约' : 'Select Contract First'} --</option>
+                            </select>
+                        </div>
+
+                        <div id="methodInputs" style="margin-bottom: 15px;"></div>
+
+                        <div style="display: flex; gap: 10px;">
+                            <button onclick="executeDebugMethod()" style="flex: 1; padding: 10px; background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">
+                                ${currentLang === 'zh' ? '执行方法' : 'Execute Method'}
+                            </button>
+                            <button onclick="clearDebugResult()" style="padding: 10px 20px; background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db; border-radius: 6px; font-weight: 600; cursor: pointer;">
+                                ${currentLang === 'zh' ? '清除' : 'Clear'}
+                            </button>
+                        </div>
+
+                        <div id="debugResult" style="margin-top: 15px; padding: 10px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; font-family: monospace; font-size: 12px; max-height: 200px; overflow-y: auto; display: none;"></div>
+                    </div>
+                </div>
+
+                <button id="abiDebuggerToggle" onclick="toggleABIDebugger()" style="position: fixed; bottom: 20px; right: 20px; width: 50px; height: 50px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; border-radius: 50%; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 24px; z-index: 9999;">
+                    🔧
+                </button>
+            `;
+
+            // Add to body
+            const debuggerDiv = document.createElement('div');
+            debuggerDiv.innerHTML = debuggerHTML;
+            document.body.appendChild(debuggerDiv);
+        }
+
+        window.toggleABIDebugger = function() {
+            const panel = document.getElementById('abiDebuggerPanel');
+            const toggle = document.getElementById('abiDebuggerToggle');
+            if (panel.style.display === 'none') {
+                panel.style.display = 'block';
+                toggle.style.display = 'none';
+            } else {
+                panel.style.display = 'none';
+                toggle.style.display = 'flex';
+            }
+        }
+
+        window.updateDebugMethods = function() {
+            const contractType = document.getElementById('debugContractSelect').value;
+            const methodSelect = document.getElementById('debugMethodSelect');
+
+            if (!contractType) {
+                methodSelect.innerHTML = `<option value="">-- ${currentLang === 'zh' ? '先选择合约' : 'Select Contract First'} --</option>`;
+                return;
+            }
+
+            let methods = [];
+            if (contractType === 'factory') {
+                // Factory contract methods
+                methods = FACTORY_ABI.filter(item => item.type === 'function').map(func => ({
+                    name: func.name,
+                    inputs: func.inputs,
+                    outputs: func.outputs,
+                    stateMutability: func.stateMutability
+                }));
+            } else if (contractType === 'project') {
+                // Project contract methods
+                methods = PROJECT_ABI.filter(item => item.type === 'function').map(func => ({
+                    name: func.name,
+                    inputs: func.inputs,
+                    outputs: func.outputs,
+                    stateMutability: func.stateMutability
+                }));
+            }
+
+            // Sort methods by view/pure first, then by name
+            methods.sort((a, b) => {
+                if ((a.stateMutability === 'view' || a.stateMutability === 'pure') &&
+                    !(b.stateMutability === 'view' || b.stateMutability === 'pure')) return -1;
+                if (!(a.stateMutability === 'view' || a.stateMutability === 'pure') &&
+                    (b.stateMutability === 'view' || b.stateMutability === 'pure')) return 1;
+                return a.name.localeCompare(b.name);
+            });
+
+            let optionsHTML = `<option value="">-- ${currentLang === 'zh' ? '选择方法' : 'Select Method'} --</option>`;
+            methods.forEach((method, index) => {
+                const isView = method.stateMutability === 'view' || method.stateMutability === 'pure';
+                const icon = isView ? '👁️' : '✏️';
+                optionsHTML += `<option value="${index}">${icon} ${method.name}()</option>`;
+            });
+
+            methodSelect.innerHTML = optionsHTML;
+            window.debugMethods = methods;
+        }
+
+        window.updateMethodInputs = function() {
+            const methodIndex = document.getElementById('debugMethodSelect').value;
+            const inputsDiv = document.getElementById('methodInputs');
+
+            if (!methodIndex || !window.debugMethods) {
+                inputsDiv.innerHTML = '';
+                return;
+            }
+
+            const method = window.debugMethods[methodIndex];
+            let inputsHTML = '';
+
+            if (method.inputs && method.inputs.length > 0) {
+                inputsHTML += `<div style="font-weight: 600; color: #374151; margin-bottom: 10px;">${currentLang === 'zh' ? '方法参数：' : 'Method Parameters:'}</div>`;
+                method.inputs.forEach((input, i) => {
+                    inputsHTML += `
+                        <div style="margin-bottom: 10px;">
+                            <label style="display: block; margin-bottom: 3px; font-size: 12px; color: #6b7280;">
+                                ${input.name || `param${i}`} (${input.type})
+                            </label>
+                            <input type="text"
+                                   id="debugInput_${i}"
+                                   placeholder="${input.type}"
+                                   style="width: 100%; padding: 6px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px;">
+                        </div>
+                    `;
+                });
+            } else {
+                inputsHTML = `<div style="color: #9ca3af; font-style: italic;">${currentLang === 'zh' ? '此方法无需参数' : 'No parameters required'}</div>`;
+            }
+
+            // Add value input for payable methods
+            if (method.stateMutability === 'payable') {
+                inputsHTML += `
+                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
+                        <label style="display: block; margin-bottom: 3px; font-size: 12px; color: #dc2626; font-weight: 600;">
+                            💰 ${currentLang === 'zh' ? 'ETH 发送金额' : 'ETH Value to Send'}
+                        </label>
+                        <input type="text"
+                               id="debugValue"
+                               placeholder="0.0"
+                               style="width: 100%; padding: 6px; border: 1px solid #fecaca; border-radius: 4px; font-size: 14px;">
+                    </div>
+                `;
+            }
+
+            inputsDiv.innerHTML = inputsHTML;
+        }
+
+        window.executeDebugMethod = async function() {
+            const contractType = document.getElementById('debugContractSelect').value;
+            const methodIndex = document.getElementById('debugMethodSelect').value;
+            const resultDiv = document.getElementById('debugResult');
+
+            if (!contractType || !methodIndex || !window.debugMethods) {
+                showToast(currentLang === 'zh' ? '请选择合约和方法' : 'Please select contract and method', 'error');
+                return;
+            }
+
+            const method = window.debugMethods[methodIndex];
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `<div style="color: #6366f1;">⏳ ${currentLang === 'zh' ? '执行中...' : 'Executing...'}</div>`;
+
+            try {
+                let contract;
+                let contractAddress;
+
+                if (contractType === 'factory') {
+                    if (!factoryContract) {
+                        throw new Error(currentLang === 'zh' ? '请先连接 Factory 合约' : 'Please connect to Factory contract first');
+                    }
+                    contract = factoryContract;
+                    contractAddress = document.getElementById('globalFactoryAddress').value;
+                } else if (contractType === 'project') {
+                    if (!window.currentSubscriberProject) {
+                        throw new Error(currentLang === 'zh' ? '请先连接项目' : 'Please connect to a project first');
+                    }
+                    const selectedChainId = localStorage.getItem('selectedNetwork') || '8453';
+                    const rpcUrl = getNetworkRpcUrl(selectedChainId);
+                    const web3Read = new Web3(new Web3.providers.HttpProvider(rpcUrl));
+                    contract = new web3Read.eth.Contract(PROJECT_ABI, window.currentSubscriberProject);
+                    contractAddress = window.currentSubscriberProject;
+                }
+
+                // Prepare method arguments
+                const args = [];
+                if (method.inputs && method.inputs.length > 0) {
+                    for (let i = 0; i < method.inputs.length; i++) {
+                        const inputValue = document.getElementById(`debugInput_${i}`).value;
+                        if (!inputValue && inputValue !== 0) {
+                            throw new Error(`${currentLang === 'zh' ? '请填写参数' : 'Please fill parameter'}: ${method.inputs[i].name || `param${i}`}`);
+                        }
+
+                        // Parse input based on type
+                        const inputType = method.inputs[i].type;
+                        if (inputType.includes('uint') || inputType.includes('int')) {
+                            args.push(inputValue);
+                        } else if (inputType === 'bool') {
+                            args.push(inputValue.toLowerCase() === 'true');
+                        } else if (inputType.includes('[]')) {
+                            args.push(JSON.parse(inputValue));
+                        } else {
+                            args.push(inputValue);
+                        }
+                    }
+                }
+
+                // Execute method
+                let result;
+                if (method.stateMutability === 'view' || method.stateMutability === 'pure') {
+                    // Read-only method
+                    result = await contract.methods[method.name](...args).call({ from: '0x0000000000000000000000000000000000000000' });
+                } else {
+                    // State-changing method
+                    if (!accounts || accounts.length === 0) {
+                        throw new Error(currentLang === 'zh' ? '请先连接钱包' : 'Please connect wallet first');
+                    }
+
+                    const options = { from: accounts[0] };
+                    if (method.stateMutability === 'payable') {
+                        const valueInput = document.getElementById('debugValue');
+                        if (valueInput && valueInput.value) {
+                            options.value = web3.utils.toWei(valueInput.value, 'ether');
+                        }
+                    }
+
+                    const tx = await contract.methods[method.name](...args).send(options);
+                    result = { transactionHash: tx.transactionHash };
+                }
+
+                // Display result
+                let formattedResult;
+                if (typeof result === 'object' && result !== null) {
+                    formattedResult = JSON.stringify(result, null, 2);
+                } else {
+                    formattedResult = String(result);
+                }
+
+                resultDiv.innerHTML = `
+                    <div style="margin-bottom: 10px;">
+                        <strong style="color: #059669;">✅ ${currentLang === 'zh' ? '执行成功' : 'Success'}</strong>
+                    </div>
+                    <div style="background: white; padding: 10px; border-radius: 4px; overflow-x: auto;">
+                        <pre style="margin: 0; white-space: pre-wrap; word-break: break-all;">${formattedResult}</pre>
+                    </div>
+                    <div style="margin-top: 10px; color: #6b7280; font-size: 11px;">
+                        📍 Contract: ${contractAddress.substring(0, 6)}...${contractAddress.substring(38)}
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Debug execution error:', error);
+                resultDiv.innerHTML = `
+                    <div style="margin-bottom: 10px;">
+                        <strong style="color: #dc2626;">❌ ${currentLang === 'zh' ? '执行失败' : 'Error'}</strong>
+                    </div>
+                    <div style="background: #fef2f2; color: #991b1b; padding: 10px; border-radius: 4px; overflow-x: auto;">
+                        <pre style="margin: 0; white-space: pre-wrap; word-break: break-all;">${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        window.clearDebugResult = function() {
+            document.getElementById('debugResult').style.display = 'none';
+            document.getElementById('debugResult').innerHTML = '';
+        }
+
+        // Initialize ABI debugger on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            createABIDebugger();
         });
     </script>
 </body>

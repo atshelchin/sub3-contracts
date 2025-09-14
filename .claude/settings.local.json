@@ -4,7 +4,9 @@
       "Bash(forge test:*)",
       "Bash(forge build:*)",
       "Bash(sed:*)",
-      "Bash(open subscription-ui.html)"
+      "Bash(open subscription-ui.html)",
+      "Bash(cast sig:*)",
+      "Bash(cast keccak:*)"
     ],
     "deny": [],
     "ask": []
