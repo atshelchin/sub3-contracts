@@ -18,17 +18,10 @@ contract FactoryTest is Test {
 
     // Events
     event ProjectDeployed(
-        address indexed project,
-        address indexed owner,
-        string name,
-        string symbol,
-        uint256 timestamp
+        address indexed project, address indexed owner, string name, string symbol, uint256 timestamp
     );
     event CreationFeeUpdated(uint256 oldFee, uint256 newFee);
-    event ImplementationUpdated(
-        address oldImplementation,
-        address newImplementation
-    );
+    event ImplementationUpdated(address oldImplementation, address newImplementation);
     event PlatformFeeUpdated(uint256 oldBasisPoints, uint256 newBasisPoints);
 
     function setUp() public {
@@ -66,27 +59,14 @@ contract FactoryTest is Test {
     // ============ deployNewProject Tests ============
 
     function test_DeployNewProject_Success() public {
-        DataTypes.BrandConfig memory config = _createBrandConfig(
-            "Test Project",
-            "TEST"
-        );
+        DataTypes.BrandConfig memory config = _createBrandConfig("Test Project", "TEST");
 
         vm.startPrank(user1);
         // Note: We don't know the exact project address before deployment, so we check other params
         vm.expectEmit(false, true, false, false);
-        emit ProjectDeployed(
-            address(0),
-            user1,
-            "Test Project",
-            "TEST",
-            block.timestamp
-        );
+        emit ProjectDeployed(address(0), user1, "Test Project", "TEST", block.timestamp);
 
-        address project = factory.deployNewProject{value: 0.01 ether}(
-            config,
-            user1,
-            _createDefaultPrices()
-        );
+        address project = factory.deployNewProject{value: 0.01 ether}(config, user1, _createDefaultPrices());
         vm.stopPrank();
 
         // Verify project data
@@ -99,10 +79,7 @@ contract FactoryTest is Test {
         assertEq(factory.saltToProject(salt), project);
 
         // Verify project exists check
-        (bool exists, address existingProject) = factory.isProjectNameTaken(
-            "Test Project",
-            "TEST"
-        );
+        (bool exists, address existingProject) = factory.isProjectNameTaken("Test Project", "TEST");
         assertTrue(exists);
         assertEq(existingProject, project);
     }
@@ -111,11 +88,7 @@ contract FactoryTest is Test {
         DataTypes.BrandConfig memory config = _createBrandConfig("Test", "TST");
 
         vm.prank(user1);
-        address project = factory.deployNewProject{value: 0.01 ether}(
-            config,
-            user2,
-            _createDefaultPrices()
-        );
+        address project = factory.deployNewProject{value: 0.01 ether}(config, user2, _createDefaultPrices());
 
         assertEq(factory.projectToOwner(project), user2);
         assertEq(factory.getOwnerProjectCount(user2), 1);
@@ -126,18 +99,8 @@ contract FactoryTest is Test {
         DataTypes.BrandConfig memory config = _createBrandConfig("Test", "TST");
 
         vm.startPrank(user1);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IFactory.InvalidFee.selector,
-                0.005 ether,
-                0.01 ether
-            )
-        );
-        factory.deployNewProject{value: 0.005 ether}(
-            config,
-            user1,
-            _createDefaultPrices()
-        );
+        vm.expectRevert(abi.encodeWithSelector(IFactory.InvalidFee.selector, 0.005 ether, 0.01 ether));
+        factory.deployNewProject{value: 0.005 ether}(config, user1, _createDefaultPrices());
         vm.stopPrank();
     }
 
@@ -145,18 +108,8 @@ contract FactoryTest is Test {
         DataTypes.BrandConfig memory config = _createBrandConfig("Test", "TST");
 
         vm.startPrank(user1);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IFactory.InvalidFee.selector,
-                0.02 ether,
-                0.01 ether
-            )
-        );
-        factory.deployNewProject{value: 0.02 ether}(
-            config,
-            user1,
-            _createDefaultPrices()
-        );
+        vm.expectRevert(abi.encodeWithSelector(IFactory.InvalidFee.selector, 0.02 ether, 0.01 ether));
+        factory.deployNewProject{value: 0.02 ether}(config, user1, _createDefaultPrices());
         vm.stopPrank();
     }
 
@@ -165,11 +118,7 @@ contract FactoryTest is Test {
 
         vm.startPrank(user1);
         vm.expectRevert(IFactory.ZeroAddress.selector);
-        factory.deployNewProject{value: 0.01 ether}(
-            config,
-            address(0),
-            _createDefaultPrices()
-        );
+        factory.deployNewProject{value: 0.01 ether}(config, address(0), _createDefaultPrices());
         vm.stopPrank();
     }
 
@@ -177,17 +126,8 @@ contract FactoryTest is Test {
         DataTypes.BrandConfig memory config = _createBrandConfig("", "TST");
 
         vm.startPrank(user1);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IFactory.InvalidInput.selector,
-                "Project name cannot be empty"
-            )
-        );
-        factory.deployNewProject{value: 0.01 ether}(
-            config,
-            user1,
-            _createDefaultPrices()
-        );
+        vm.expectRevert(abi.encodeWithSelector(IFactory.InvalidInput.selector, "Project name cannot be empty"));
+        factory.deployNewProject{value: 0.01 ether}(config, user1, _createDefaultPrices());
         vm.stopPrank();
     }
 
@@ -195,61 +135,28 @@ contract FactoryTest is Test {
         DataTypes.BrandConfig memory config = _createBrandConfig("Test", "");
 
         vm.startPrank(user1);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IFactory.InvalidInput.selector,
-                "Project symbol cannot be empty"
-            )
-        );
-        factory.deployNewProject{value: 0.01 ether}(
-            config,
-            user1,
-            _createDefaultPrices()
-        );
+        vm.expectRevert(abi.encodeWithSelector(IFactory.InvalidInput.selector, "Project symbol cannot be empty"));
+        factory.deployNewProject{value: 0.01 ether}(config, user1, _createDefaultPrices());
         vm.stopPrank();
     }
 
     function test_DeployNewProject_RevertNameTooLong() public {
         string memory longName = _generateString(101);
-        DataTypes.BrandConfig memory config = _createBrandConfig(
-            longName,
-            "TST"
-        );
+        DataTypes.BrandConfig memory config = _createBrandConfig(longName, "TST");
 
         vm.startPrank(user1);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IFactory.InvalidInput.selector,
-                "Project name too long"
-            )
-        );
-        factory.deployNewProject{value: 0.01 ether}(
-            config,
-            user1,
-            _createDefaultPrices()
-        );
+        vm.expectRevert(abi.encodeWithSelector(IFactory.InvalidInput.selector, "Project name too long"));
+        factory.deployNewProject{value: 0.01 ether}(config, user1, _createDefaultPrices());
         vm.stopPrank();
     }
 
     function test_DeployNewProject_RevertSymbolTooLong() public {
         string memory longSymbol = _generateString(21);
-        DataTypes.BrandConfig memory config = _createBrandConfig(
-            "Test",
-            longSymbol
-        );
+        DataTypes.BrandConfig memory config = _createBrandConfig("Test", longSymbol);
 
         vm.startPrank(user1);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IFactory.InvalidInput.selector,
-                "Project symbol too long"
-            )
-        );
-        factory.deployNewProject{value: 0.01 ether}(
-            config,
-            user1,
-            _createDefaultPrices()
-        );
+        vm.expectRevert(abi.encodeWithSelector(IFactory.InvalidInput.selector, "Project symbol too long"));
+        factory.deployNewProject{value: 0.01 ether}(config, user1, _createDefaultPrices());
         vm.stopPrank();
     }
 
@@ -257,23 +164,10 @@ contract FactoryTest is Test {
         DataTypes.BrandConfig memory config = _createBrandConfig("Test", "TST");
 
         vm.startPrank(user1);
-        address firstProject = factory.deployNewProject{value: 0.01 ether}(
-            config,
-            user1,
-            _createDefaultPrices()
-        );
+        address firstProject = factory.deployNewProject{value: 0.01 ether}(config, user1, _createDefaultPrices());
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IFactory.ProjectAlreadyExists.selector,
-                firstProject
-            )
-        );
-        factory.deployNewProject{value: 0.01 ether}(
-            config,
-            user2,
-            _createDefaultPrices()
-        );
+        vm.expectRevert(abi.encodeWithSelector(IFactory.ProjectAlreadyExists.selector, firstProject));
+        factory.deployNewProject{value: 0.01 ether}(config, user2, _createDefaultPrices());
         vm.stopPrank();
     }
 
@@ -282,14 +176,9 @@ contract FactoryTest is Test {
 
         for (uint256 i = 0; i < 5; i++) {
             DataTypes.BrandConfig memory config = _createBrandConfig(
-                string(abi.encodePacked("Project", vm.toString(i))),
-                string(abi.encodePacked("P", vm.toString(i)))
+                string(abi.encodePacked("Project", vm.toString(i))), string(abi.encodePacked("P", vm.toString(i)))
             );
-            factory.deployNewProject{value: 0.01 ether}(
-                config,
-                user1,
-                _createDefaultPrices()
-            );
+            factory.deployNewProject{value: 0.01 ether}(config, user1, _createDefaultPrices());
         }
 
         vm.stopPrank();
@@ -375,9 +264,7 @@ contract FactoryTest is Test {
 
     function test_SetPlatformFeeBasisPoints_RevertExceedsMaximum() public {
         vm.startPrank(owner);
-        vm.expectRevert(
-            abi.encodeWithSelector(IFactory.InvalidBasisPoints.selector, 10001)
-        );
+        vm.expectRevert(abi.encodeWithSelector(IFactory.InvalidBasisPoints.selector, 10001));
         factory.setPlatformFeeBasisPoints(10001);
         vm.stopPrank();
     }
@@ -396,26 +283,22 @@ contract FactoryTest is Test {
         _deployMultipleProjects(10);
 
         // Test first page
-        (address[] memory projects1, uint256 total1) = factory
-            .getProjectsPaginated(0, 5);
+        (address[] memory projects1, uint256 total1) = factory.getProjectsPaginated(0, 5);
         assertEq(projects1.length, 5);
         assertEq(total1, 10);
 
         // Test second page
-        (address[] memory projects2, uint256 total2) = factory
-            .getProjectsPaginated(5, 5);
+        (address[] memory projects2, uint256 total2) = factory.getProjectsPaginated(5, 5);
         assertEq(projects2.length, 5);
         assertEq(total2, 10);
 
         // Test with limit exceeding remaining
-        (address[] memory projects3, uint256 total3) = factory
-            .getProjectsPaginated(8, 5);
+        (address[] memory projects3, uint256 total3) = factory.getProjectsPaginated(8, 5);
         assertEq(projects3.length, 2);
         assertEq(total3, 10);
 
         // Test offset out of bounds
-        (address[] memory projects4, uint256 total4) = factory
-            .getProjectsPaginated(15, 5);
+        (address[] memory projects4, uint256 total4) = factory.getProjectsPaginated(15, 5);
         assertEq(projects4.length, 0);
         assertEq(total4, 10);
     }
@@ -424,7 +307,7 @@ contract FactoryTest is Test {
         _deployMultipleProjects(150);
 
         // Test that limit is capped at 100
-        (address[] memory projects, ) = factory.getProjectsPaginated(0, 200);
+        (address[] memory projects,) = factory.getProjectsPaginated(0, 200);
         assertEq(projects.length, 100);
     }
 
@@ -436,11 +319,7 @@ contract FactoryTest is Test {
                 string(abi.encodePacked("User1Project", vm.toString(i))),
                 string(abi.encodePacked("U1P", vm.toString(i)))
             );
-            factory.deployNewProject{value: 0.01 ether}(
-                config,
-                user1,
-                _createDefaultPrices()
-            );
+            factory.deployNewProject{value: 0.01 ether}(config, user1, _createDefaultPrices());
         }
         vm.stopPrank();
 
@@ -450,39 +329,25 @@ contract FactoryTest is Test {
                 string(abi.encodePacked("User2Project", vm.toString(i))),
                 string(abi.encodePacked("U2P", vm.toString(i)))
             );
-            factory.deployNewProject{value: 0.01 ether}(
-                config,
-                user2,
-                _createDefaultPrices()
-            );
+            factory.deployNewProject{value: 0.01 ether}(config, user2, _createDefaultPrices());
         }
         vm.stopPrank();
 
         // Test user1's projects
-        (address[] memory user1Projects, uint256 user1Total) = factory
-            .getOwnerProjectsPaginated(user1, 0, 10);
+        (address[] memory user1Projects, uint256 user1Total) = factory.getOwnerProjectsPaginated(user1, 0, 10);
         assertEq(user1Projects.length, 5);
         assertEq(user1Total, 5);
 
         // Test user2's projects
-        (address[] memory user2Projects, uint256 user2Total) = factory
-            .getOwnerProjectsPaginated(user2, 0, 10);
+        (address[] memory user2Projects, uint256 user2Total) = factory.getOwnerProjectsPaginated(user2, 0, 10);
         assertEq(user2Projects.length, 3);
         assertEq(user2Total, 3);
 
         // Test pagination for user1
-        (address[] memory user1Page1, ) = factory.getOwnerProjectsPaginated(
-            user1,
-            0,
-            3
-        );
+        (address[] memory user1Page1,) = factory.getOwnerProjectsPaginated(user1, 0, 3);
         assertEq(user1Page1.length, 3);
 
-        (address[] memory user1Page2, ) = factory.getOwnerProjectsPaginated(
-            user1,
-            3,
-            3
-        );
+        (address[] memory user1Page2,) = factory.getOwnerProjectsPaginated(user1, 3, 3);
         assertEq(user1Page2.length, 2);
     }
 
@@ -524,15 +389,10 @@ contract FactoryTest is Test {
         // Deploy 3 more with different names to avoid duplicates
         for (uint256 i = 100; i < 103; i++) {
             DataTypes.BrandConfig memory config = _createBrandConfig(
-                string(abi.encodePacked("Additional", vm.toString(i))),
-                string(abi.encodePacked("ADD", vm.toString(i)))
+                string(abi.encodePacked("Additional", vm.toString(i))), string(abi.encodePacked("ADD", vm.toString(i)))
             );
             vm.prank(user1);
-            factory.deployNewProject{value: 0.01 ether}(
-                config,
-                user1,
-                _createDefaultPrices()
-            );
+            factory.deployNewProject{value: 0.01 ether}(config, user1, _createDefaultPrices());
         }
         assertEq(factory.getTotalProjects(), 8);
     }
@@ -542,37 +402,23 @@ contract FactoryTest is Test {
 
         vm.startPrank(user1);
         DataTypes.BrandConfig memory config = _createBrandConfig("Test", "TST");
-        factory.deployNewProject{value: 0.01 ether}(
-            config,
-            user1,
-            _createDefaultPrices()
-        );
+        factory.deployNewProject{value: 0.01 ether}(config, user1, _createDefaultPrices());
         vm.stopPrank();
 
         assertEq(factory.getOwnerProjectCount(user1), 1);
     }
 
     function test_IsProjectNameTaken() public {
-        (bool exists1, address project1) = factory.isProjectNameTaken(
-            "Test",
-            "TST"
-        );
+        (bool exists1, address project1) = factory.isProjectNameTaken("Test", "TST");
         assertFalse(exists1);
         assertEq(project1, address(0));
 
         vm.startPrank(user1);
         DataTypes.BrandConfig memory config = _createBrandConfig("Test", "TST");
-        address deployedProject = factory.deployNewProject{value: 0.01 ether}(
-            config,
-            user1,
-            _createDefaultPrices()
-        );
+        address deployedProject = factory.deployNewProject{value: 0.01 ether}(config, user1, _createDefaultPrices());
         vm.stopPrank();
 
-        (bool exists2, address project2) = factory.isProjectNameTaken(
-            "Test",
-            "TST"
-        );
+        (bool exists2, address project2) = factory.isProjectNameTaken("Test", "TST");
         assertTrue(exists2);
         assertEq(project2, deployedProject);
     }
@@ -616,12 +462,7 @@ contract FactoryTest is Test {
 
     function test_WithdrawFees_RevertNoFees() public {
         vm.startPrank(owner);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IFactory.InvalidInput.selector,
-                "No fees to withdraw"
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(IFactory.InvalidInput.selector, "No fees to withdraw"));
         factory.withdrawFees(owner);
         vm.stopPrank();
     }
@@ -635,11 +476,7 @@ contract FactoryTest is Test {
         // Deploy a project to generate fees
         DataTypes.BrandConfig memory config = _createBrandConfig("Test", "TST");
         vm.prank(user1);
-        factory.deployNewProject{value: 0.01 ether}(
-            config,
-            user1,
-            _createDefaultPrices()
-        );
+        factory.deployNewProject{value: 0.01 ether}(config, user1, _createDefaultPrices());
 
         // Create malicious owner contract
         MaliciousOwner maliciousOwner = new MaliciousOwner(address(factory));
@@ -661,7 +498,7 @@ contract FactoryTest is Test {
         uint256 balanceBefore = address(factory).balance;
 
         vm.prank(user1);
-        (bool success, ) = address(factory).call{value: 1 ether}("");
+        (bool success,) = address(factory).call{value: 1 ether}("");
         assertTrue(success);
 
         assertEq(address(factory).balance, balanceBefore + 1 ether);
@@ -676,29 +513,25 @@ contract FactoryTest is Test {
 
     // ============ Helper Functions ============
 
-    function _createBrandConfig(
-        string memory name,
-        string memory symbol
-    ) internal pure returns (DataTypes.BrandConfig memory) {
-        return
-            DataTypes.BrandConfig({
-                name: name,
-                symbol: symbol,
-                description: "Test project description",
-                logoUri: "https://example.com/logo.png",
-                websiteUrl: "https://example.com",
-                primaryColor: "#FF0000",
-                maxTier: 1, // Enable STARTER and STANDARD tiers (0-1)
-                enabledPeriods: [false, false, true, true], // Enable monthly and yearly only
-                tierNames: ["Starter", "Standard", "Pro", "Max"] // Default tier names
-            });
-    }
-
-    function _createDefaultPrices()
+    function _createBrandConfig(string memory name, string memory symbol)
         internal
         pure
-        returns (uint256[4][4] memory)
+        returns (DataTypes.BrandConfig memory)
     {
+        return DataTypes.BrandConfig({
+            name: name,
+            symbol: symbol,
+            description: "Test project description",
+            logoUri: "https://example.com/logo.png",
+            websiteUrl: "https://example.com",
+            primaryColor: "#FF0000",
+            maxTier: 1, // Enable STARTER and STANDARD tiers (0-1)
+            enabledPeriods: [false, false, true, true], // Enable monthly and yearly only
+            tierNames: ["Starter", "Standard", "Pro", "Max"] // Default tier names
+        });
+    }
+
+    function _createDefaultPrices() internal pure returns (uint256[4][4] memory) {
         uint256[4][4] memory prices;
         // Starter: [daily, weekly, monthly, yearly]
         prices[0] = [uint256(0), 0, 0.001 ether, 0.01 ether];
@@ -711,9 +544,7 @@ contract FactoryTest is Test {
         return prices;
     }
 
-    function _generateString(
-        uint256 length
-    ) internal pure returns (string memory) {
+    function _generateString(uint256 length) internal pure returns (string memory) {
         bytes memory result = new bytes(length);
         for (uint256 i = 0; i < length; i++) {
             result[i] = bytes1(uint8(65 + (i % 26))); // A-Z
@@ -724,20 +555,11 @@ contract FactoryTest is Test {
     function _deployMultipleProjects(uint256 count) internal {
         for (uint256 i = 0; i < count; i++) {
             DataTypes.BrandConfig memory config = _createBrandConfig(
-                string(
-                    abi.encodePacked(
-                        "Project",
-                        vm.toString(block.timestamp + i)
-                    )
-                ),
+                string(abi.encodePacked("Project", vm.toString(block.timestamp + i))),
                 string(abi.encodePacked("P", vm.toString(block.timestamp + i)))
             );
             vm.prank(user1);
-            factory.deployNewProject{value: 0.01 ether}(
-                config,
-                user1,
-                _createDefaultPrices()
-            );
+            factory.deployNewProject{value: 0.01 ether}(config, user1, _createDefaultPrices());
         }
     }
 }
@@ -787,11 +609,7 @@ contract ReentrantAttacker {
         factory = Factory(payable(_factory));
     }
 
-    function _createDefaultPrices()
-        internal
-        pure
-        returns (uint256[4][4] memory)
-    {
+    function _createDefaultPrices() internal pure returns (uint256[4][4] memory) {
         uint256[4][4] memory prices;
         // Starter: [daily, weekly, monthly, yearly]
         prices[0] = [uint256(0), 0, 0.001 ether, 0.01 ether];
@@ -817,11 +635,7 @@ contract ReentrantAttacker {
             enabledPeriods: [false, false, true, true],
             tierNames: ["Starter", "Standard", "Pro", "Max"]
         });
-        factory.deployNewProject{value: 0.01 ether}(
-            config,
-            address(this),
-            _createDefaultPrices()
-        );
+        factory.deployNewProject{value: 0.01 ether}(config, address(this), _createDefaultPrices());
     }
 
     receive() external payable {
@@ -838,11 +652,7 @@ contract ReentrantAttacker {
                 enabledPeriods: [false, false, true, true],
                 tierNames: ["Starter", "Standard", "Pro", "Max"]
             });
-            factory.deployNewProject{value: 0.01 ether}(
-                config,
-                address(this),
-                _createDefaultPrices()
-            );
+            factory.deployNewProject{value: 0.01 ether}(config, address(this), _createDefaultPrices());
         }
     }
 }
