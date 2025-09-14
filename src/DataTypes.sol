@@ -26,22 +26,25 @@ library DataTypes {
     }
 
     enum SubscriptionTier {
-        STARTER,  // 0: Starter plan
+        STARTER, // 0: Starter plan
         STANDARD, // 1: Standard plan
-        PRO,      // 2: Pro plan
-        MAX       // 3: Max plan
+        PRO, // 2: Pro plan
+        MAX // 3: Max plan
+
     }
 
     enum SubscriptionPeriod {
-        DAILY,   // 0: Daily payment
-        WEEKLY,  // 1: Weekly payment
+        DAILY, // 0: Daily payment
+        WEEKLY, // 1: Weekly payment
         MONTHLY, // 2: Monthly payment
-        YEARLY   // 3: Yearly payment
+        YEARLY // 3: Yearly payment
+
     }
 
     enum SubscriptionStatus {
         ACTIVE, // 0: Active
         EXPIRED // 1: Expired
+
     }
 
     enum OperationType {
@@ -49,6 +52,7 @@ library DataTypes {
         UPGRADE, // 1: Upgrade
         DOWNGRADE, // 2: Downgrade
         RENEW // 3: Renew
+
     }
 
     struct SubscriptionPlan {
@@ -68,7 +72,7 @@ library DataTypes {
         uint256 totalRewardsEarned; // Total rewards earned by user
         uint256 totalSpent; // Total cumulative amount spent
     }
-    
+
     struct OperationRecord {
         address user; // User who performed the operation
         OperationType operationType; // Type of operation

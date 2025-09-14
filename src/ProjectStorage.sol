@@ -9,7 +9,7 @@ contract ProjectStorage is Ownable {
     DataTypes.BrandConfig public brandConfig;
     address public factory;
     bool public initialized;
-    
+
     // State Variables (public for reader access)
     mapping(address => DataTypes.UserSubscription) public userSubscriptions;
     mapping(DataTypes.SubscriptionTier => DataTypes.SubscriptionPlan) public plans;
@@ -30,11 +30,11 @@ contract ProjectStorage is Ownable {
     uint256 public totalSubscribers; // Total number of subscribers
     uint256 public totalReferrers; // Total number of unique referrers who earned rewards
     uint256 public totalValidReferralRevenue; // Total revenue from subscriptions with valid referrers
-    
+
     // ========== List Storage for Pagination ==========
     address[] public subscribersList; // List of all subscribers
     mapping(address => address[]) public referrerToUsers; // Referrer => list of referred users
-    
+
     // ========== Operation History Storage ==========
     DataTypes.OperationRecord[] public operationHistory; // All operations
     mapping(address => uint256[]) public userOperationIndices; // User => list of operation indices

@@ -10,17 +10,10 @@ import {DataTypes} from "../DataTypes.sol";
 interface IFactory {
     // Events
     event ProjectDeployed(
-        address indexed project,
-        address indexed owner,
-        string name,
-        string symbol,
-        uint256 timestamp
+        address indexed project, address indexed owner, string name, string symbol, uint256 timestamp
     );
     event CreationFeeUpdated(uint256 oldFee, uint256 newFee);
-    event ImplementationUpdated(
-        address oldImplementation,
-        address newImplementation
-    );
+    event ImplementationUpdated(address oldImplementation, address newImplementation);
     event PlatformFeeUpdated(uint256 oldBasisPoints, uint256 newBasisPoints);
 
     // Errors
@@ -35,7 +28,7 @@ interface IFactory {
 
     // View Functions
     function projectImplementation() external view returns (address);
-    
+
     function projectReaderImplementation() external view returns (address);
 
     function projectCreationFee() external view returns (uint256);
@@ -44,10 +37,7 @@ interface IFactory {
 
     function projects(uint256 index) external view returns (address);
 
-    function ownerProjects(
-        address owner,
-        uint256 index
-    ) external view returns (address);
+    function ownerProjects(address owner, uint256 index) external view returns (address);
 
     function projectToOwner(address project) external view returns (address);
 
@@ -74,12 +64,7 @@ interface IFactory {
     function getRevenueStats()
         external
         view
-        returns (
-            uint256 creationFees,
-            uint256 platformFees,
-            uint256 directDeposits,
-            uint256 totalBalance
-        );
+        returns (uint256 creationFees, uint256 platformFees, uint256 directDeposits, uint256 totalBalance);
 
     /**
      * @notice Get all deployed projects with pagination
@@ -88,10 +73,10 @@ interface IFactory {
      * @return projectList Array of project addresses
      * @return totalCount Total number of projects in the system
      */
-    function getProjectsPaginated(
-        uint256 offset,
-        uint256 limit
-    ) external view returns (address[] memory projectList, uint256 totalCount);
+    function getProjectsPaginated(uint256 offset, uint256 limit)
+        external
+        view
+        returns (address[] memory projectList, uint256 totalCount);
 
     /**
      * @notice Get projects owned by a specific address with pagination
@@ -101,20 +86,17 @@ interface IFactory {
      * @return projectList Array of project addresses owned by the specified owner
      * @return totalCount Total number of projects owned by this address
      */
-    function getOwnerProjectsPaginated(
-        address owner,
-        uint256 offset,
-        uint256 limit
-    ) external view returns (address[] memory projectList, uint256 totalCount);
+    function getOwnerProjectsPaginated(address owner, uint256 offset, uint256 limit)
+        external
+        view
+        returns (address[] memory projectList, uint256 totalCount);
 
     /**
      * @notice Calculate platform fee for a given amount
      * @param amount The amount to calculate fee for
      * @return fee The calculated platform fee
      */
-    function calculatePlatformFee(
-        uint256 amount
-    ) external view returns (uint256 fee);
+    function calculatePlatformFee(uint256 amount) external view returns (uint256 fee);
 
     /**
      * @notice Get total number of projects deployed
@@ -127,9 +109,7 @@ interface IFactory {
      * @param owner Address to query
      * @return Total number of projects owned
      */
-    function getOwnerProjectCount(
-        address owner
-    ) external view returns (uint256);
+    function getOwnerProjectCount(address owner) external view returns (uint256);
 
     /**
      * @notice Check if a project name and symbol combination is already taken
@@ -138,10 +118,10 @@ interface IFactory {
      * @return exists True if the combination already exists
      * @return existingProject Address of existing project if it exists
      */
-    function isProjectNameTaken(
-        string memory name,
-        string memory symbol
-    ) external view returns (bool exists, address existingProject);
+    function isProjectNameTaken(string memory name, string memory symbol)
+        external
+        view
+        returns (bool exists, address existingProject);
 
     // State-Changing Functions
 

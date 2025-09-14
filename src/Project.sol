@@ -47,11 +47,7 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
         // Initialize plans for each enabled tier
         for (uint8 i = 0; i <= brandConfig.maxTier; i++) {
             DataTypes.SubscriptionTier tier = DataTypes.SubscriptionTier(i);
-            plans[tier] = DataTypes.SubscriptionPlan({
-                enabled: true,
-                prices: prices[i],
-                features: new string[](0)
-            });
+            plans[tier] = DataTypes.SubscriptionPlan({enabled: true, prices: prices[i], features: new string[](0)});
         }
     }
 
@@ -64,21 +60,17 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
      * @param prices Array of prices for [daily, weekly, monthly, yearly]
      * @param features Array of feature descriptions
      */
-    function setPlanConfig(
-        DataTypes.SubscriptionTier tier,
-        uint256[4] memory prices,
-        string[] memory features
-    ) external onlyOwner whenInitialized validTier(tier) {
+    function setPlanConfig(DataTypes.SubscriptionTier tier, uint256[4] memory prices, string[] memory features)
+        external
+        onlyOwner
+        whenInitialized
+        validTier(tier)
+    {
         plans[tier].prices = prices;
         plans[tier].features = features;
         plans[tier].enabled = true;
 
-        emit PlanConfigUpdated(
-            tier,
-            prices,
-            brandConfig.tierNames[uint8(tier)],
-            features
-        );
+        emit PlanConfigUpdated(tier, prices, brandConfig.tierNames[uint8(tier)], features);
     }
 
     /**
@@ -86,20 +78,10 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
      * @dev Only owner can update brand settings except name and symbol
      * @param newConfig New brand configuration
      */
-    function updateBrandConfig(
-        DataTypes.BrandConfig memory newConfig
-    ) external onlyOwner whenInitialized {
+    function updateBrandConfig(DataTypes.BrandConfig memory newConfig) external onlyOwner whenInitialized {
         // Name and symbol must remain the same
-        require(
-            keccak256(bytes(newConfig.name)) ==
-                keccak256(bytes(brandConfig.name)),
-            "Name cannot be changed"
-        );
-        require(
-            keccak256(bytes(newConfig.symbol)) ==
-                keccak256(bytes(brandConfig.symbol)),
-            "Symbol cannot be changed"
-        );
+        require(keccak256(bytes(newConfig.name)) == keccak256(bytes(brandConfig.name)), "Name cannot be changed");
+        require(keccak256(bytes(newConfig.symbol)) == keccak256(bytes(brandConfig.symbol)), "Symbol cannot be changed");
 
         // Update all configurable fields
         brandConfig.description = newConfig.description;
@@ -123,8 +105,7 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
         if (to == address(0)) revert ZeroAddress();
 
         // Calculate withdrawable balance (total balance - pending referral rewards)
-        uint256 withdrawableBalance = address(this).balance -
-            totalPendingReferralRewards;
+        uint256 withdrawableBalance = address(this).balance - totalPendingReferralRewards;
 
         _safeTransfer(to, withdrawableBalance);
 
@@ -140,11 +121,7 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
      * @param period Payment period (MONTHLY or YEARLY)
      * @param referrer Optional referrer address (must have active subscription)
      */
-    function subscribe(
-        DataTypes.SubscriptionTier tier,
-        DataTypes.SubscriptionPeriod period,
-        address referrer
-    )
+    function subscribe(DataTypes.SubscriptionTier tier, DataTypes.SubscriptionPeriod period, address referrer)
         external
         payable
         whenInitialized
@@ -153,8 +130,7 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
         nonReentrant
     {
         // Check if this is a first-time subscriber (before updating the subscription)
-        bool isFirstTimeSubscriber = userSubscriptions[msg.sender].user ==
-            address(0);
+        bool isFirstTimeSubscriber = userSubscriptions[msg.sender].user == address(0);
 
         // Check first-time subscriber
         if (!isFirstTimeSubscriber) revert AlreadySubscribed();
@@ -225,10 +201,7 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
      * @param tier Subscription tier for renewal
      * @param period Payment period for renewal
      */
-    function renew(
-        DataTypes.SubscriptionTier tier,
-        DataTypes.SubscriptionPeriod period
-    )
+    function renew(DataTypes.SubscriptionTier tier, DataTypes.SubscriptionPeriod period)
         external
         payable
         whenInitialized
@@ -236,9 +209,7 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
         validPeriod(period)
         nonReentrant
     {
-        DataTypes.UserSubscription storage subscription = userSubscriptions[
-            msg.sender
-        ];
+        DataTypes.UserSubscription storage subscription = userSubscriptions[msg.sender];
 
         _requireSubscriptionExists(msg.sender);
         _requireExpiredSubscription(msg.sender);
@@ -263,14 +234,7 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
 
         // Record operation
         _recordOperation(
-            msg.sender,
-            DataTypes.OperationType.RENEW,
-            oldTier,
-            tier,
-            oldPeriod,
-            period,
-            msg.value,
-            subscription.endTime
+            msg.sender, DataTypes.OperationType.RENEW, oldTier, tier, oldPeriod, period, msg.value, subscription.endTime
         );
 
         emit Renewed(msg.sender, tier, period, msg.value, subscription.endTime);
@@ -282,10 +246,7 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
      * @param newTier New subscription tier (must be higher than current)
      * @param newPeriod New subscription period
      */
-    function upgrade(
-        DataTypes.SubscriptionTier newTier,
-        DataTypes.SubscriptionPeriod newPeriod
-    )
+    function upgrade(DataTypes.SubscriptionTier newTier, DataTypes.SubscriptionPeriod newPeriod)
         external
         payable
         whenInitialized
@@ -293,9 +254,7 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
         validPeriod(newPeriod)
         nonReentrant
     {
-        DataTypes.UserSubscription storage subscription = userSubscriptions[
-            msg.sender
-        ];
+        DataTypes.UserSubscription storage subscription = userSubscriptions[msg.sender];
 
         _requireActiveSubscription(msg.sender);
 
@@ -314,11 +273,9 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
         uint256 actualPaidAmount = subscription.paidAmount;
 
         // Calculate costs separately to avoid underflow
-        uint256 remainingNewCost = (newTierPrice * remainingTime) /
-            newPeriodDuration;
+        uint256 remainingNewCost = (newTierPrice * remainingTime) / newPeriodDuration;
         uint256 fullPeriodCost = newTierPrice;
-        uint256 remainingOldCredit = (actualPaidAmount * remainingTime) /
-            currentPeriodDuration;
+        uint256 remainingOldCredit = (actualPaidAmount * remainingTime) / currentPeriodDuration;
 
         // Ensure no underflow
         uint256 upgradeCost = remainingNewCost + fullPeriodCost;
@@ -356,13 +313,7 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
             subscription.endTime
         );
 
-        emit Upgraded(
-            msg.sender,
-            oldTier,
-            newTier,
-            msg.value,
-            subscription.endTime
-        );
+        emit Upgraded(msg.sender, oldTier, newTier, msg.value, subscription.endTime);
     }
 
     /**
@@ -371,10 +322,7 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
      * @param newTier New subscription tier (must be lower than current)
      * @param period Payment period for the downgraded plan
      */
-    function downgrade(
-        DataTypes.SubscriptionTier newTier,
-        DataTypes.SubscriptionPeriod period
-    )
+    function downgrade(DataTypes.SubscriptionTier newTier, DataTypes.SubscriptionPeriod period)
         external
         payable
         whenInitialized
@@ -382,9 +330,7 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
         validPeriod(period)
         nonReentrant
     {
-        DataTypes.UserSubscription storage subscription = userSubscriptions[
-            msg.sender
-        ];
+        DataTypes.UserSubscription storage subscription = userSubscriptions[msg.sender];
 
         _requireSubscriptionExists(msg.sender);
         _requireExpiredSubscription(msg.sender);
@@ -420,14 +366,7 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
             subscription.endTime
         );
 
-        emit Downgraded(
-            msg.sender,
-            oldTier,
-            newTier,
-            period,
-            msg.value,
-            subscription.endTime
-        );
+        emit Downgraded(msg.sender, oldTier, newTier, period, msg.value, subscription.endTime);
     }
 
     // ==================== Referral Functions ====================
@@ -437,9 +376,7 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
      * @dev Can only claim once every 7 days
      */
     function claimReferralRewards() external nonReentrant {
-        DataTypes.ReferralAccount storage account = referralAccounts[
-            msg.sender
-        ];
+        DataTypes.ReferralAccount storage account = referralAccounts[msg.sender];
 
         // Check if there are rewards to claim
         if (account.pendingRewards == 0) {
@@ -459,7 +396,7 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
         totalPendingReferralRewards -= rewardAmount;
 
         // Transfer rewards
-        (bool success, ) = payable(msg.sender).call{value: rewardAmount}("");
+        (bool success,) = payable(msg.sender).call{value: rewardAmount}("");
         if (!success) revert TransferFailed();
 
         emit ReferralRewardsClaimed(msg.sender, rewardAmount);
@@ -469,10 +406,11 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
 
     // ==================== Internal Functions ====================
 
-    function _getPrice(
-        DataTypes.SubscriptionTier tier,
-        DataTypes.SubscriptionPeriod period
-    ) private view returns (uint256) {
+    function _getPrice(DataTypes.SubscriptionTier tier, DataTypes.SubscriptionPeriod period)
+        private
+        view
+        returns (uint256)
+    {
         DataTypes.SubscriptionPlan storage plan = plans[tier];
         uint256 periodIndex = uint256(period);
         require(plan.enabled, "Tier not enabled");
@@ -482,9 +420,7 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
         return price;
     }
 
-    function _getDuration(
-        DataTypes.SubscriptionPeriod period
-    ) private pure returns (uint256) {
+    function _getDuration(DataTypes.SubscriptionPeriod period) private pure returns (uint256) {
         if (period == DataTypes.SubscriptionPeriod.DAILY) return 1 days;
         if (period == DataTypes.SubscriptionPeriod.WEEKLY) return 7 days;
         if (period == DataTypes.SubscriptionPeriod.MONTHLY) return 30 days;
@@ -498,20 +434,13 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
         }
     }
 
-    function _processPayment(
-        address subscriber,
-        uint256 paymentAmount
-    ) private {
+    function _processPayment(address subscriber, uint256 paymentAmount) private {
         // Cache storage reads
-        DataTypes.UserSubscription storage subscription = userSubscriptions[
-            subscriber
-        ];
+        DataTypes.UserSubscription storage subscription = userSubscriptions[subscriber];
         address referrer = subscription.referrer;
 
         // Calculate fees
-        uint256 platformFee = IFactory(factory).calculatePlatformFee(
-            paymentAmount
-        );
+        uint256 platformFee = IFactory(factory).calculatePlatformFee(paymentAmount);
         uint256 cashback;
         uint256 referrerReward;
         bool hasValidReferrer;
@@ -542,10 +471,7 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
 
         // Calculate net revenue (what actually stays in the contract for project owner)
         // Must deduct: platform fee, cashback to subscriber, and referrer rewards
-        uint256 netAmount = paymentAmount -
-            platformFee -
-            cashback -
-            referrerReward;
+        uint256 netAmount = paymentAmount - platformFee - cashback - referrerReward;
         totalNetRevenue += netAmount;
 
         // Execute transfers
@@ -562,7 +488,7 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
     }
 
     function _safeTransfer(address to, uint256 amount) private {
-        (bool success, ) = payable(to).call{value: amount}("");
+        (bool success,) = payable(to).call{value: amount}("");
         if (!success) revert TransferFailed();
     }
 
@@ -611,18 +537,12 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
         userOperationIndices[user].push(operationIndex);
     }
 
-    function _processReferralRewards(
-        address referrer,
-        address subscriber,
-        uint256 paymentAmount
-    ) private {
+    function _processReferralRewards(address referrer, address subscriber, uint256 paymentAmount) private {
         // Calculate 10% rewards
         uint256 rewardAmount = (paymentAmount * REFERRAL_REWARD_RATE) / 10000;
 
         // Update referrer's account (referrer gets 10% reward to claim later)
-        DataTypes.ReferralAccount storage referrerAccount = referralAccounts[
-            referrer
-        ];
+        DataTypes.ReferralAccount storage referrerAccount = referralAccounts[referrer];
         referrerAccount.pendingRewards += rewardAmount;
         referrerAccount.totalRewards += rewardAmount;
 
@@ -631,32 +551,25 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
 
         // Only count as new referral on first subscription
         if (
-            userSubscriptions[subscriber].referrer == referrer &&
-            userSubscriptions[subscriber].startTime == block.timestamp
+            userSubscriptions[subscriber].referrer == referrer
+                && userSubscriptions[subscriber].startTime == block.timestamp
         ) {
             referrerAccount.referralCount++;
             totalReferralSubscriptions++;
         }
 
         // Update subscriber's cashback tracking (separate from referrer rewards)
-        DataTypes.UserSubscription storage subscription = userSubscriptions[
-            subscriber
-        ];
+        DataTypes.UserSubscription storage subscription = userSubscriptions[subscriber];
         subscription.totalRewardsEarned += rewardAmount;
 
         // Track only referrer rewards in totalReferralRewardsDistributed
         totalReferralRewardsDistributed += rewardAmount;
 
-        emit ReferralRewardAccrued(
-            referrer,
-            subscriber,
-            rewardAmount,
-            rewardAmount
-        );
+        emit ReferralRewardAccrued(referrer, subscriber, rewardAmount, rewardAmount);
     }
 
     // ==================== Proxy for View Functions ====================
-    
+
     /**
      * @dev Fallback function to delegate view calls to reader implementation
      * @notice Dynamically reads reader implementation from Factory
@@ -666,7 +579,7 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
         // Dynamically get reader implementation from Factory
         address impl = IFactory(factory).projectReaderImplementation();
         if (impl == address(0)) revert();
-        
+
         assembly {
             calldatacopy(0, 0, calldatasize())
             // delegatecall allows the reader to access this contract's storage
@@ -678,7 +591,7 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
             default { return(0, returndatasize()) }
         }
     }
-    
+
     // Disabled functions
     function requestOwnershipHandover() public payable override {
         revert("This function is disabled");
@@ -688,15 +601,11 @@ contract Project is IProjectWrite, ProjectStorage, ReentrancyGuard {
         revert("This function is disabled");
     }
 
-    function completeOwnershipHandover(
-        address /* pendingOwner */
-    ) public payable override onlyOwner {
+    function completeOwnershipHandover(address /* pendingOwner */ ) public payable override onlyOwner {
         revert("This function is disabled");
     }
 
-    function ownershipHandoverExpiresAt(
-        address /* pendingOwner */
-    ) public view override returns (uint256 result) {
+    function ownershipHandoverExpiresAt(address /* pendingOwner */ ) public view override returns (uint256 result) {
         result = brandConfig.maxTier;
         revert("This function is disabled");
     }
