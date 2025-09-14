@@ -376,6 +376,212 @@ MIT License - 详见 [LICENSE](LICENSE) 文件
 - [Foundry](https://getfoundry.sh/) - 智能合约开发框架
 - [OpenZeppelin](https://openzeppelin.com/) - 安全标准参考
 
+## 📖 合约接口签名参考
+
+### Factory 合约签名
+
+#### 函数签名 (Functions)
+```solidity
+// 查询函数
+projectImplementation()                    → 0x020e9a93
+projectCreationFee()                        → 0x6bad6541
+platformFeeBasisPoints()                    → 0xc58bfb66
+projects(uint256)                           → 0x107046bd
+calculatePlatformFee(uint256)               → 0x0cbab4f7
+getTotalProjects()                          → 0x812739a2
+getOwnerProjectCount(address)               → 0x7db2d9c7
+isProjectNameTaken(string,string)           → 0xca017aef
+getRevenueStats()                           → 0xac18992c
+getProjectsPaginated(uint256,uint256)       → 0x33ee0568
+getOwnerProjectsPaginated(address,uint256,uint256) → 0x4bc6d082
+
+// 管理函数
+setProjectCreationFee(uint256)              → 0x0db25b77
+setProjectImplementation(address)           → 0x1f9e55b7
+setPlatformFeeBasisPoints(uint256)          → 0xc247e686
+deployNewProject(BrandConfig,address,uint256[4][4]) → 0x92c121a6
+withdrawFees(address)                       → 0x164e68de
+```
+
+#### 错误签名 (Errors)
+```solidity
+InvalidFee(uint256,uint256)                 → 0xf05eb608
+InvalidInput(string)                        → 0xd647364f
+ZeroAddress()                               → 0xd92e233d
+InvalidBasisPoints(uint256)                 → 0x197f1962
+TransferFailed()                            → 0x90b8ec18
+ProjectAlreadyExists(address)               → 0xe0a460cd
+```
+
+#### 事件签名 (Events)
+```solidity
+ProjectDeployed(address,address,string,string,uint256)
+    → 0x82d2bdec36cf20e995d0ce1e3ce8a38bc182f92659dab188941a2eb513dbd9c5
+
+CreationFeeUpdated(uint256,uint256)
+    → 0x5de302eeb1c80d4fb0c0953b692353f09ddf431411b8eb2034d5e85769561912
+
+PlatformFeeUpdated(uint256,uint256)
+    → 0xd347e206f25a89b917fc9482f1a2d294d749baa4dc9bde7fb495ee11fe491643
+
+ImplementationUpdated(address,address)
+    → 0xaa3f731066a578e5f39b4215468d826cdd15373cbc0dfc9cb9bdc649718ef7da
+```
+
+### Project 合约签名
+
+#### 函数签名 (Functions)
+```solidity
+// 初始化
+initialize(BrandConfig,address,address,uint256[4][4]) → 0xc6135515
+
+// 管理函数
+setPlanConfig(uint8,uint256[4],string[])    → 0x2796a530
+updateBrandConfig(BrandConfig)              → 0x962b6c96
+withdraw(address)                           → 0x51cff8d9
+
+// 订阅函数
+subscribe(uint8,uint8,address)              → 0xe5392bf9
+renew(uint8,uint8)                          → 0x94d74f45
+upgrade(uint8,uint8)                        → 0x631864dd
+downgrade(uint8,uint8)                      → 0x549d4ae4
+
+// 推荐函数
+claimReferralRewards()                      → 0x05eaab4b
+
+// 查询函数
+getBrandConfig()                            → 0xfdb78243
+getEnabledPeriods()                         → 0x1ca2f88a
+getTierNames()                              → 0x5ebdc22e
+getPlan(uint8)                              → 0xa12b2121
+getAllPlans()                               → 0x98de396a
+getUserSubscription(address)                → 0xebbeec08
+hasActiveSubscription(address)              → 0xbebe4a57
+getReferralAccount(address)                 → 0x3171b76f
+getReferralStats()                          → 0xbb4356a7
+getUserTotalRewards(address)                → 0x666c4b5c
+getProjectStats()                           → 0x2d6c1661
+getWithdrawableBalance()                    → 0xbe788e70
+getSubscribersPaginated(uint256,uint256)    → 0x414a1100
+getReferralsPaginated(address,uint256,uint256) → 0x6b5adf3b
+getOperationHistoryPaginated(uint256,uint256) → 0xa2aaed26
+getUserOperationHistoryPaginated(address,uint256,uint256) → 0x7ee73053
+```
+
+#### 错误签名 (Errors)
+```solidity
+ProjectAlreadyInitialized()                 → 0x9398a190
+NotInitialized()                            → 0x87138d5c
+InvalidTier()                               → 0xe1423617
+InvalidPeriod()                             → 0x17479ac8
+InvalidPrice()                              → 0x00bfc921
+InsufficientPayment()                       → 0xcd1c8867
+ExcessPayment()                             → 0xc57d98bb
+NoActiveSubscription()                      → 0x5eb24725
+SubscriptionStillActive()                   → 0xe72f2f75
+AlreadySubscribed()                         → 0x5fd8a132
+CannotDowngradeToSameTier()                 → 0x144da5b6
+CannotUpgradeToSameTier()                   → 0x384e4a22
+InsufficientBalance()                       → 0xf4d678b8
+TransferFailed()                            → 0x90b8ec18
+ZeroAddress()                               → 0xd92e233d
+ZeroAmount()                                → 0x1f2a2005
+NoRewardsToClaim()                          → 0x73380d99
+ClaimCooldownNotMet()                       → 0x7c170123
+```
+
+#### 事件签名 (Events)
+```solidity
+PlanConfigUpdated(uint8,uint256[4],string,string[])
+    → 0xe60a3d5cf86d70b167bf9dabe0c57cc7588ce5bb77f1ad3ccccc2842ee1b8236
+
+Subscribed(address,uint8,uint8,uint256,uint256)
+    → 0xfcf95381264fce3d0acbb5d4a40f00c77c48d9cf3e842ad7fe58ef9f7f28278a
+
+Renewed(address,uint8,uint8,uint256,uint256)
+    → 0xeb3c6be4dd634a39db190ec19cf2b6c9713dc5d6b495a2e6d2306b7b93bda681
+
+Upgraded(address,uint8,uint8,uint256,uint256)
+    → 0x878f9a9d812d80cfb8bfdf46f3b54022bf1352a580946ad4dddc2053a7f6d597
+
+Downgraded(address,uint8,uint8,uint8,uint256,uint256)
+    → 0x67a8bb85cc575ca4a91129fa6a1b3a52fc9676be1bb2a0c790fa461e9704fec2
+
+Withdrawn(address,uint256)
+    → 0x7084f5476618d8e60b11ef0d7d3f06914655adb8793e28ff7f018d4c76d505d5
+
+BrandConfigUpdated(string,string)
+    → 0xe8d968cda3dc6327b5b331bdf9cf3e2e6de836f13f62c41983927d9737bcf689
+
+ReferralRewardAccrued(address,address,uint256,uint256)
+    → 0x927edc6a2ba12aea3853fd74ed72954a32b4a8d009004decf87af75d3ce20051
+
+ReferralRewardsClaimed(address,uint256)
+    → 0x98741ecf35c5d20a8ed68dbd8540500684864a6c98c2a41a5844d0b3a2357d43
+```
+
+### 枚举值映射
+
+```solidity
+// SubscriptionTier (uint8)
+STARTER  = 0
+STANDARD = 1
+PRO      = 2
+MAX      = 3
+
+// SubscriptionPeriod (uint8)
+DAILY    = 0
+WEEKLY   = 1
+MONTHLY  = 2
+YEARLY   = 3
+
+// OperationType (uint8)
+SUBSCRIBE = 0
+UPGRADE   = 1
+DOWNGRADE = 2
+RENEW     = 3
+```
+
+### 使用示例
+
+#### Web3.js 调用示例
+```javascript
+// 获取用户订阅信息
+const signature = '0xebbeec08'; // getUserSubscription(address)
+const data = web3.eth.abi.encodeFunctionCall({
+    name: 'getUserSubscription',
+    type: 'function',
+    inputs: [{type: 'address', name: 'user'}]
+}, [userAddress]);
+
+// 订阅服务
+const subscribeSignature = '0xe5392bf9'; // subscribe(uint8,uint8,address)
+const subscribeData = web3.eth.abi.encodeFunctionCall({
+    name: 'subscribe',
+    type: 'function',
+    inputs: [
+        {type: 'uint8', name: 'tier'},
+        {type: 'uint8', name: 'period'},
+        {type: 'address', name: 'referrer'}
+    ]
+}, [2, 2, referrerAddress]); // Pro tier, Monthly period
+```
+
+#### Ethers.js 错误处理示例
+```javascript
+try {
+    await contract.subscribe(tier, period, referrer, {value: price});
+} catch (error) {
+    if (error.data?.startsWith('0xc57d98bb')) {
+        console.error('支付金额过多 (ExcessPayment)');
+    } else if (error.data?.startsWith('0xcd1c8867')) {
+        console.error('支付金额不足 (InsufficientPayment)');
+    } else if (error.data?.startsWith('0x5fd8a132')) {
+        console.error('已经订阅 (AlreadySubscribed)');
+    }
+}
+```
+
 ---
 
 **免责声明**: 本项目仅供学习和研究使用，请勿在未经审计的情况下部署到主网。使用本代码产生的任何损失，开发者不承担责任。
